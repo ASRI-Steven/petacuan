@@ -1,0 +1,928 @@
+{
+  "pamulang": {
+    "listings": [
+      {
+        "priceIdr": 300000000,
+        "lt": 240,
+        "lb": 600,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 165000000,
+        "lt": 133,
+        "lb": 300,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 175000000,
+        "lt": 612,
+        "lb": 165,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 175000000,
+        "lt": 612,
+        "lb": 165,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 95000000,
+        "lt": 8000,
+        "lb": 98,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 220000000,
+        "lt": 130,
+        "lb": 500,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 100000000,
+        "lt": 67,
+        "lb": 180,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 220000000,
+        "lt": 76,
+        "lb": 120,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 110000000,
+        "lt": 104,
+        "lb": 144,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 65000000,
+        "lt": 72,
+        "lb": 56,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 55000000,
+        "lt": 200,
+        "lb": 75,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 99000000,
+        "lt": 200,
+        "lb": 180,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 45000000,
+        "lt": 150,
+        "lb": 200,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 135000000,
+        "lt": 110,
+        "lb": 205,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 320000000,
+        "lt": 240,
+        "lb": 450,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 100000000,
+        "lt": 74,
+        "lb": 121,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 45000000,
+        "lt": 28,
+        "lb": 28,
+        "format": "kios"
+      },
+      {
+        "priceIdr": 90000000,
+        "lt": 81,
+        "lb": 220,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 135000000,
+        "lt": 100,
+        "lb": 198,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 70000000,
+        "lt": 90,
+        "lb": 144,
+        "format": "ruko_std"
+      }
+    ],
+    "stats": {
+      "ruko_premium": {
+        "count": 4,
+        "min": 220000000,
+        "max": 320000000,
+        "median": 300000000,
+        "p25": 220000000,
+        "p75": 320000000
+      },
+      "ruko_std": {
+        "count": 15,
+        "min": 45000000,
+        "max": 175000000,
+        "median": 100000000,
+        "p25": 70000000,
+        "p75": 135000000
+      },
+      "kios": {
+        "count": 1,
+        "min": 45000000,
+        "max": 45000000,
+        "median": 45000000,
+        "p25": 45000000,
+        "p75": 45000000
+      }
+    }
+  },
+  "ciputat": {
+    "listings": [
+      {
+        "priceIdr": 150000000,
+        "lt": 300,
+        "lb": 375,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 160000000,
+        "lt": 65,
+        "lb": 147,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 250000000,
+        "lt": 200,
+        "lb": 400,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 70000000,
+        "lt": 68,
+        "lb": 213,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 140000000,
+        "lt": 288,
+        "lb": 178,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 200000000,
+        "lt": 240,
+        "lb": 480,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 399000000,
+        "lt": 300,
+        "lb": 750,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 345000000,
+        "lt": 2000,
+        "lb": 2000,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 52,
+        "lb": 262,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 52,
+        "lb": 262,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 163000000,
+        "lt": 65,
+        "lb": 147,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 700000000,
+        "lt": 70,
+        "lb": 170,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 399000000,
+        "lt": 300,
+        "lb": 750,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 52,
+        "lb": 262,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 240000000,
+        "lt": 84,
+        "lb": 252,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 140000000,
+        "lt": 58,
+        "lb": 175,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 135000000,
+        "lt": 48,
+        "lb": 160,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 240000000,
+        "lt": 84,
+        "lb": 84,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 58,
+        "lb": 175,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 95000000,
+        "lt": 60,
+        "lb": 242,
+        "format": "ruko_std"
+      }
+    ],
+    "stats": {
+      "ruko_std": {
+        "count": 12,
+        "min": 70000000,
+        "max": 163000000,
+        "median": 150000000,
+        "p25": 135000000,
+        "p75": 150000000
+      },
+      "ruko_premium": {
+        "count": 8,
+        "min": 200000000,
+        "max": 700000000,
+        "median": 345000000,
+        "p25": 240000000,
+        "p75": 399000000
+      }
+    }
+  },
+  "ciputat-timur": {
+    "listings": [
+      {
+        "priceIdr": 170000000,
+        "lt": 135,
+        "lb": 300,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 37000000,
+        "lt": 36,
+        "lb": 36,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 35000000,
+        "lt": 35,
+        "lb": 24,
+        "format": "kios"
+      },
+      {
+        "priceIdr": 95000000,
+        "lt": 45,
+        "lb": 90,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 300000000,
+        "lt": 700,
+        "lb": 400,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 250000000,
+        "lt": 130,
+        "lb": 260,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 210000000,
+        "lt": 145,
+        "lb": 450,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 170000000,
+        "lt": 135,
+        "lb": 300,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 265000000,
+        "lt": 400,
+        "lb": 600,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 122,
+        "lb": 160,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 110000000,
+        "lt": 78,
+        "lb": 169,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 220000000,
+        "lt": 130,
+        "lb": 300,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 23500000,
+        "lt": 24,
+        "lb": 24,
+        "format": "kios"
+      },
+      {
+        "priceIdr": 70000000,
+        "lt": 114,
+        "lb": 153,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 125000000,
+        "lt": 153,
+        "lb": 535,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 78,
+        "lb": 234,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 78,
+        "lb": 234,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 78,
+        "lb": 234,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 78,
+        "lb": 234,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 78,
+        "lb": 234,
+        "format": "ruko_std"
+      }
+    ],
+    "stats": {
+      "ruko_std": {
+        "count": 13,
+        "min": 37000000,
+        "max": 170000000,
+        "median": 150000000,
+        "p25": 110000000,
+        "p75": 150000000
+      },
+      "kios": {
+        "count": 2,
+        "min": 23500000,
+        "max": 35000000,
+        "median": 35000000,
+        "p25": 23500000,
+        "p75": 35000000
+      },
+      "ruko_premium": {
+        "count": 5,
+        "min": 210000000,
+        "max": 300000000,
+        "median": 250000000,
+        "p25": 220000000,
+        "p75": 265000000
+      }
+    }
+  },
+  "pondok-aren": {
+    "listings": [
+      {
+        "priceIdr": 200000000,
+        "lt": 300,
+        "lb": 96,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 195000000,
+        "lt": 152,
+        "lb": 208,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 90000000,
+        "lt": 60,
+        "lb": 110,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 110000000,
+        "lt": 50,
+        "lb": 175,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 119000000,
+        "lt": 67,
+        "lb": 67,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 119000000,
+        "lt": 67,
+        "lb": 67,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 119000000,
+        "lt": 67,
+        "lb": 67,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 500000000,
+        "lt": 99,
+        "lb": 219,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 120000000,
+        "lt": 195,
+        "lb": 300,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 65000000,
+        "lt": 90,
+        "lb": 70,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 135000000,
+        "lt": 84,
+        "lb": 200,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 27500000,
+        "lt": 48,
+        "lb": 30,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 100000000,
+        "lt": 50,
+        "lb": 74,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 60000000,
+        "lt": 100,
+        "lb": 140,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 120000000,
+        "lt": 106,
+        "lb": 191,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 120000000,
+        "lt": 106,
+        "lb": 191,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 450000000,
+        "lt": 378,
+        "lb": 576,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 135000000,
+        "lt": 65,
+        "lb": 147,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 450000000,
+        "lt": 378,
+        "lb": 576,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 450000000,
+        "lt": 378,
+        "lb": 576,
+        "format": "ruko_premium"
+      }
+    ],
+    "stats": {
+      "ruko_premium": {
+        "count": 5,
+        "min": 200000000,
+        "max": 500000000,
+        "median": 450000000,
+        "p25": 450000000,
+        "p75": 450000000
+      },
+      "ruko_std": {
+        "count": 15,
+        "min": 27500000,
+        "max": 195000000,
+        "median": 119000000,
+        "p25": 90000000,
+        "p75": 120000000
+      }
+    }
+  },
+  "serpong": {
+    "listings": [
+      {
+        "priceIdr": 90000000,
+        "lt": 60,
+        "lb": 180,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 75000000,
+        "lt": 54,
+        "lb": 125,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 140000000,
+        "lt": 75,
+        "lb": 130,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 420000000,
+        "lt": 112,
+        "lb": 347,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 175000000,
+        "lt": 45,
+        "lb": 90,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 165,
+        "lb": 340,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 85000000,
+        "lt": 36,
+        "lb": 108,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 100000000,
+        "lt": 100,
+        "lb": 250,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 175000000,
+        "lt": 78,
+        "lb": 198,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 120000000,
+        "lt": 54,
+        "lb": 152,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 600000000,
+        "lt": 540,
+        "lb": 850,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 210000000,
+        "lt": 243,
+        "lb": 186,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 70,
+        "lb": 245,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 450000000,
+        "lt": 247,
+        "lb": 576,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 550000000,
+        "lt": 350,
+        "lb": 600,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 55000000,
+        "lt": 54,
+        "lb": 1000,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 125000000,
+        "lt": 58,
+        "lb": 175,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 110000000,
+        "lt": 54,
+        "lb": 125,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 170000000,
+        "lt": 84,
+        "lb": 18375,
+        "format": "ruko_std"
+      }
+    ],
+    "stats": {
+      "ruko_std": {
+        "count": 14,
+        "min": 55000000,
+        "max": 175000000,
+        "median": 125000000,
+        "p25": 90000000,
+        "p75": 140000000
+      },
+      "ruko_premium": {
+        "count": 5,
+        "min": 210000000,
+        "max": 600000000,
+        "median": 450000000,
+        "p25": 420000000,
+        "p75": 550000000
+      }
+    }
+  },
+  "serpong-utara": {
+    "listings": [
+      {
+        "priceIdr": 125000000,
+        "lt": 100,
+        "lb": 230,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 200000000,
+        "lt": 96,
+        "lb": 271,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 200000000,
+        "lt": 466,
+        "lb": 450,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 90000000,
+        "lt": 157,
+        "lb": 550,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 85000000,
+        "lt": 68,
+        "lb": 205,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 90,
+        "lb": 270,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 125000000,
+        "lt": 100,
+        "lb": 230,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 450000000,
+        "lt": 247,
+        "lb": 576,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 80000000,
+        "lt": 60,
+        "lb": 72,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 90,
+        "lb": 270,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 450000000,
+        "lt": 247,
+        "lb": 576,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 110000000,
+        "lt": 100,
+        "lb": 100,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 60,
+        "lb": 60,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 90,
+        "lb": 270,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 73,
+        "lb": 112,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 90,
+        "lb": 270,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 150000000,
+        "lt": 90,
+        "lb": 270,
+        "format": "ruko_std"
+      }
+    ],
+    "stats": {
+      "ruko_std": {
+        "count": 13,
+        "min": 80000000,
+        "max": 150000000,
+        "median": 130000000,
+        "p25": 110000000,
+        "p75": 150000000
+      },
+      "ruko_premium": {
+        "count": 4,
+        "min": 200000000,
+        "max": 450000000,
+        "median": 450000000,
+        "p25": 200000000,
+        "p75": 450000000
+      }
+    }
+  },
+  "setu": {
+    "listings": [
+      {
+        "priceIdr": 80000000,
+        "lt": 500,
+        "lb": 96,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 92000000,
+        "lt": 324,
+        "lb": 121,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 555000000,
+        "lt": 540,
+        "lb": 540,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 110000000,
+        "lt": 71,
+        "lb": 182,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 60000000,
+        "lt": 42,
+        "lb": 80,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 125000000,
+        "lt": 70,
+        "lb": 140,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 108000000,
+        "lt": 75,
+        "lb": 105,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 80000000,
+        "lt": 75,
+        "lb": 210,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 125000000,
+        "lt": 75,
+        "lb": 105,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 130000000,
+        "lt": 220,
+        "lb": 220,
+        "format": "ruko_std"
+      }
+    ],
+    "stats": {
+      "ruko_std": {
+        "count": 9,
+        "min": 60000000,
+        "max": 130000000,
+        "median": 108000000,
+        "p25": 80000000,
+        "p75": 125000000
+      },
+      "ruko_premium": {
+        "count": 1,
+        "min": 555000000,
+        "max": 555000000,
+        "median": 555000000,
+        "p25": 555000000,
+        "p75": 555000000
+      }
+    }
+  }
+}
