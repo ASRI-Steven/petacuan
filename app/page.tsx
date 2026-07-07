@@ -1,47 +1,55 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import { MapLegend } from '@/components/MapLegend';
+import { Chatbot } from '@/components/Chatbot';
+import { MapRouting, type RouteResult, type Place } from '@/components/MapRouting';
+import type { Spot } from '@/components/RecommendMap.types';
 
-// Leaflet harus di-load client-side only
 const RecommendMap = dynamic(
   () => import('@/components/RecommendMap'),
-  { 
-    ssr: false, 
-    loading: () => <div className="h-full bg-gray-100 flex items-center justify-center">Loading map...</div> 
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)', flexDirection: 'column', gap: 12 }}>
+        <div style={{ width: 28, height: 28, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+        <span style={{ color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--font-body)' }}>Memuat peta...</span>
+      </div>
+    ),
   }
 ) as React.ComponentType<{
-  heatmap: Array<{
-    lat: number;
-    lng: number;
-    kelurahanId: number;
-    kelurahan: string;
-    kecamatan: string;
-    score: number;
-  }>;
-  top: Array<{
-    kelurahanId: number;
-    kelurahan: string;
-    kecamatan: string;
-    coordinates: { lat: number; lng: number };
-    scores: { final: number };
-  }>;
+  heatmap: Array<{ lat: number; lng: number; kelurahanId: number; kelurahan: string; kecamatan: string; score: number; competitorCount?: number }>;
+  top: Array<{ kelurahanId: number; kelurahan: string; kecamatan: string; coordinates: { lat: number; lng: number }; scores: { final: number } }>;
+  spots: Spot[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  flyTarget: [number, number] | null;
+  isochroneTarget?: [number, number] | null;
+  theme?: 'dark' | 'light';
+  routeGeometry?: GeoJSON.LineString | null;
+  routeFrom?: [number, number] | null;
+  routeTo?: [number, number] | null;
+  pickingActive?: boolean;
+  onMapPick?: (lngLat: [number, number]) => void;
 }>;
 
-const BUSINESS_TYPES = [
-  { value: 'warkop', label: 'Warung Kopi / Cafe' },
-  { value: 'restoran', label: 'Restoran / Rumah Makan' },
-  { value: 'laundry', label: 'Laundry Kiloan' },
-  { value: 'klinik', label: 'Klinik / Dokter' },
-  { value: 'salon', label: 'Salon Kecantikan' },
-  { value: 'minimarket', label: 'Minimarket' },
-  { value: 'apotek', label: 'Apotek' },
-  { value: 'fotokopi', label: 'Fotokopi & Print' },
-  { value: 'bengkel', label: 'Bengkel Kendaraan' },
-  { value: 'barbershop', label: 'Barbershop' },
+const SUGGESTED_BUSINESSES = [
+  'Warung Kopi', 'Restoran', 'Laundry', 'Minimarket', 'Apotek',
+  'Barbershop', 'Salon', 'Fotokopi', 'Bengkel', 'Klinik',
+  'Toko Sembako', 'Warung Makan', 'Rental PS', 'Percetakan', 'Konveksi',
 ];
+
+const SCORE_METRICS = [
+  { key: 'demand' as const,       label: 'Demand',    icon: '👥' },
+  { key: 'competition' as const,  label: 'Kompetisi', icon: '⚔️' },
+  { key: 'anchor' as const,       label: 'Anchor',    icon: '⚓' },
+  { key: 'access' as const,       label: 'Akses',     icon: '🛣️' },
+  { key: 'affordability' as const,label: 'Modal',     icon: '💰' },
+];
+
+const RANK_COLORS = ['#fbbf24', '#94a3b8', '#fb923c'];
+const SCORE_THRESHOLD = 45;
 
 interface ApiResponse {
   top: Array<{
@@ -51,59 +59,234 @@ interface ApiResponse {
     coordinates: { lat: number; lng: number };
     demografis: { jumlahPenduduk: number; demandTarget: number };
     market: { competitorCount: number; anchorCount: number };
-    scores: {
-      demand: number;
-      competition: number;
-      anchor: number;
-      access: number;
-      affordability: number;
-      final: number;
-    };
+    scores: { demand: number; competition: number; anchor: number; access: number; affordability: number; final: number };
     sewa: { minIdr: number | null; maxIdr: number | null; format: string };
   }>;
-  heatmap: Array<{
-    lat: number;
-    lng: number;
-    kelurahanId: number;
-    kelurahan: string;
-    kecamatan: string;
-    score: number;
-  }>;
+  heatmap: Array<{ lat: number; lng: number; kelurahanId: number; kelurahan: string; kecamatan: string; score: number; competitorCount?: number }>;
 }
 
+function scoreHex(score: number) {
+  if (score >= 70) return '#34d399';
+  if (score >= 55) return '#86efac';
+  if (score >= 40) return '#fbbf24';
+  if (score >= 25) return '#fb923c';
+  return '#f87171';
+}
+
+function formatIdr(n: number) {
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(0)}jt`;
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
+}
+
+function ScoreRing({ score, size = 52 }: { score: number; size?: number }) {
+  const sw = 4;
+  const r = (size - sw * 2) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - score / 100);
+  const hex = scoreHex(score);
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', position: 'absolute', top: 0, left: 0 }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={sw} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={hex} strokeWidth={sw}
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.9s cubic-bezier(0.16,1,0.3,1)', filter: `drop-shadow(0 0 5px ${hex}70)` }}
+        />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontFamily: 'var(--font-body)', fontWeight: 800, fontSize: size < 56 ? 13 : 20, color: hex, lineHeight: 1 }}>
+          {score}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+const card: React.CSSProperties = {
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 14,
+  padding: 16,
+  backdropFilter: 'blur(12px)',
+};
+
+const label: React.CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 600,
+  color: 'var(--text-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  marginBottom: 8,
+};
+
+const inputBase: React.CSSProperties = {
+  width: '100%',
+  padding: '9px 12px',
+  background: 'var(--bg-surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  color: 'var(--text-primary)',
+  fontSize: 14,
+  fontFamily: 'var(--font-body)',
+  outline: 'none',
+};
+
+const sectionTitle: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontWeight: 600,
+  fontSize: 12,
+  color: 'var(--text-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  marginBottom: 12,
+};
+
 export default function Home() {
-  const [businessType, setBusinessType] = useState('warkop');
-  const [modalIdr, setModalIdr] = useState(80000000);
+  const [darkMode, setDarkMode] = useState(true);
+  const [businessType, setBusinessType] = useState('');
+  const [sqlCategory, setSqlCategory] = useState('warkop');
+  const [modalIdr, setModalIdr] = useState(80_000_000);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [narratives, setNarratives] = useState<Record<number, string>>({});
   const [loadingNarratives, setLoadingNarratives] = useState<Set<number>>(new Set());
-  
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const [userContext, setUserContext] = useState('');
+  const [aiReasoning, setAiReasoning] = useState<string | null>(null);
+  const [outOfScope, setOutOfScope] = useState<{ reason: string } | null>(null);
+  const [spots, setSpots] = useState<Spot[]>([]);
+  const [loadingSpots, setLoadingSpots] = useState(false);
+  const [selectedSpotId, setSelectedSpotId] = useState<number | null>(null);
+  const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  const [devil, setDevil] = useState<{ risks: { severity: string; text: string }[]; verdict: string } | null>(null);
+  const [loadingDevil, setLoadingDevil] = useState(false);
+  const [showChain, setShowChain] = useState(false);
+  const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [svModalSpot, setSvModalSpot] = useState<Spot | null>(null);
+  const [routeData, setRouteData] = useState<RouteResult | null>(null);
+  const [pickingActive, setPickingActive] = useState(false);
+  const [routePanelOpen, setRoutePanelOpen] = useState(false);
+  const [destinationHint, setDestinationHint] = useState<Place | null>(null);
+  const mapClickHandlerRef = useRef<((lngLat: [number, number]) => void) | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', !darkMode);
+  }, [darkMode]);
+
+  // Sinkronkan destinationHint dengan kelurahan yang dipilih (silent prefill ke field "Ke")
+  useEffect(() => {
+    const sel = result?.top.find(t => t.kelurahanId === selectedId);
+    if (!sel) return;
+    setDestinationHint({
+      lng: sel.coordinates.lng,
+      lat: sel.coordinates.lat,
+      label: `${sel.kelurahan}, ${sel.kecamatan}`,
+    });
+  }, [selectedId, result]);
+
+  async function runAnalysis(overrides?: { businessType?: string; modalIdr?: number; userContext?: string }) {
+    const bt = overrides?.businessType ?? businessType;
+    const mod = overrides?.modalIdr ?? modalIdr;
+    const ctx = overrides?.userContext ?? userContext;
+
+    if (bt.trim().length < 2 || ctx.trim().length < 5) {
+      alert('Isi jenis usaha dan konteks lokasi dulu');
+      return;
+    }
+
     setLoading(true);
     setResult(null);
     setNarratives({});
-    
+    setAiReasoning(null);
+    setOutOfScope(null);
+    setSpots([]);
+    setSelectedSpotId(null);
+    setFlyTarget(null);
+    setDevil(null);
+    setShowChain(false);
+
     try {
+      let weights = null;
+      let locationFilter = null;
+      let currentSqlCategory = sqlCategory;
+
+      if (ctx.trim().length >= 5) {
+        try {
+          const tuneRes = await fetch('/api/tune-weights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ businessType: bt, modalIdr: mod, userContext: ctx }),
+          });
+          if (tuneRes.ok) {
+            const tuneData = await tuneRes.json();
+            if (tuneData.outOfScope) {
+              setOutOfScope({ reason: tuneData.outOfScopeReason || 'Wilayah di luar Tangerang Selatan' });
+              setLoading(false);
+              return;
+            }
+            weights = tuneData.weights;
+            locationFilter = tuneData.locationFilter;
+            currentSqlCategory = tuneData.sqlCategory || 'warkop';
+            setSqlCategory(currentSqlCategory);
+            setAiReasoning(tuneData.reasoning);
+          }
+        } catch (err) {
+          console.warn('Weight tuning failed', err);
+        }
+      }
+
+      const specificKelurahan = locationFilter?.kelurahan?.length ?? 0;
+      const topN = specificKelurahan > 0 ? specificKelurahan : 3;
+
       const res = await fetch('/api/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessType, modalIdr, topN: 3 }),
+        body: JSON.stringify({
+          businessType: bt,
+          sqlCategory: currentSqlCategory,
+          modalIdr: mod,
+          topN,
+          ...(weights ? { customWeights: weights } : {}),
+          ...(locationFilter ? { locationFilter } : {}),
+        }),
       });
-      
-      if (!res.ok) throw new Error('API error');
-      
+      if (!res.ok) throw new Error('Recommend API error');
+
       const data = await res.json();
       setResult(data);
-      
-      // Auto-select top 1
-      if (data.top.length > 0) setSelectedId(data.top[0].kelurahanId);
 
-      data.top.forEach((t: any, idx: number) => {
-        fetchNarrative(t.kelurahanId, idx + 1);
-      });
+      const qualified = (data.top as ApiResponse['top']).filter(t => t.scores.final >= SCORE_THRESHOLD);
+      if (qualified.length > 0) {
+        setSelectedId(qualified[0].kelurahanId);
+        fetchNarrative(qualified[0].kelurahanId, 1, { businessType: bt, modalIdr: mod, sqlCategory: currentSqlCategory });
+        fetchDevilForItem(qualified[0], { businessType: bt, modalIdr: mod });
+
+        const kelurahanPayload = qualified.map(t => ({
+          id: t.kelurahanId,
+          name: t.kelurahan,
+          kecamatan: t.kecamatan,
+          lat: t.coordinates.lat,
+          lng: t.coordinates.lng,
+          score: t.scores.final,
+        }));
+        setLoadingSpots(true);
+        fetch('/api/spots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kelurahan: kelurahanPayload, businessType: bt, sqlCategory: currentSqlCategory, limitPerKelurahan: 10 }),
+        })
+          .then(r => r.json())
+          .then(d => setSpots(d.spots ?? []))
+          .catch(err => console.warn('Spots fetch failed', err))
+          .finally(() => setLoadingSpots(false));
+      }
     } catch (err) {
       console.error(err);
       alert('Gagal mengambil rekomendasi');
@@ -112,37 +295,62 @@ export default function Home() {
     }
   }
 
-  async function fetchNarrative(kelurahanId: number, rank: number) {
-    // Skip jika udah ada atau sedang loading
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    runAnalysis();
+  }
+
+  async function fetchDevilForItem(item: ApiResponse['top'][number], opts?: { businessType?: string; modalIdr?: number }) {
+    setDevil(null);
+    setLoadingDevil(true);
+    const bt = opts?.businessType ?? businessType;
+    const mod = opts?.modalIdr ?? modalIdr;
+    try {
+      const res = await fetch('/api/devil', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kelurahan: item.kelurahan,
+          kecamatan: item.kecamatan,
+          businessType: bt,
+          businessLabel: bt,
+          modalIdr: mod,
+          scores: item.scores,
+          competitorCount: item.market.competitorCount,
+          anchorCount: item.market.anchorCount,
+          sewa: item.sewa,
+          jumlahPenduduk: item.demografis.jumlahPenduduk,
+        }),
+      });
+      if (!res.ok) throw new Error('Devil API error');
+      const data = await res.json();
+      setDevil(data);
+    } catch (err) {
+      console.warn('Devil fetch failed', err);
+    } finally {
+      setLoadingDevil(false);
+    }
+  }
+
+  async function fetchNarrative(kelurahanId: number, rank: number, opts?: { businessType?: string; modalIdr?: number; sqlCategory?: string }) {
     if (narratives[kelurahanId] || loadingNarratives.has(kelurahanId)) return;
-    
-    // Mark as loading
     setLoadingNarratives(prev => new Set(prev).add(kelurahanId));
-    
+    const bt = opts?.businessType ?? businessType;
+    const mod = opts?.modalIdr ?? modalIdr;
+    const cat = opts?.sqlCategory ?? sqlCategory;
     try {
       const res = await fetch('/api/narrative', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kelurahanId,
-          businessType,
-          modalIdr,
-          rank,
-        }),
+        body: JSON.stringify({ kelurahanId, businessType: bt, sqlCategory: cat, modalIdr: mod, rank }),
       });
-      
       if (!res.ok) throw new Error('Narrative API error');
-      
       const data = await res.json();
       setNarratives(prev => ({ ...prev, [kelurahanId]: data.narrative }));
     } catch (err) {
       console.error(err);
-      setNarratives(prev => ({ 
-        ...prev, 
-        [kelurahanId]: 'Gagal mengambil analisis. Coba lagi.' 
-      }));
+      setNarratives(prev => ({ ...prev, [kelurahanId]: 'Gagal mengambil analisis. Coba lagi.' }));
     } finally {
-      // Remove from loading set
       setLoadingNarratives(prev => {
         const next = new Set(prev);
         next.delete(kelurahanId);
@@ -151,210 +359,1183 @@ export default function Home() {
     }
   }
 
-  function formatIdr(n: number) {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0,
-    }).format(n);
-  }
-
+  const qualifiedTop = result?.top.filter(t => t.scores.final >= SCORE_THRESHOLD) ?? [];
   const selected = result?.top.find(t => t.kelurahanId === selectedId);
 
+  function handleExportPDF() {
+    if (!selected) return;
+    const narrative = narratives[selected.kelurahanId] ?? '';
+    const sh = scoreHex;
+    const fi = formatIdr;
+    const date = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    const scoreRows = SCORE_METRICS.map(m => {
+      const val = (selected.scores as Record<string, number>)[m.key] ?? 0;
+      const col = sh(val);
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+        <span style="font-size:12px;width:80px;color:#334155">${m.icon} ${m.label}</span>
+        <div style="flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+          <div style="width:${val}%;height:100%;background:${col};border-radius:3px"></div>
+        </div>
+        <span style="font-size:12px;font-weight:700;color:${col};width:26px;text-align:right">${val.toFixed(0)}</span>
+      </div>`;
+    }).join('');
+
+    const riskRows = (devil?.risks ?? []).map(r => {
+      const bg = r.severity === 'high' ? '#fef2f2' : r.severity === 'medium' ? '#fff7ed' : '#fefce8';
+      const bc = r.severity === 'high' ? '#fecaca' : r.severity === 'medium' ? '#fed7aa' : '#fef08a';
+      const tc = r.severity === 'high' ? '#991b1b' : r.severity === 'medium' ? '#92400e' : '#713f12';
+      return `<div style="display:flex;gap:9px;padding:9px 12px;border-radius:8px;border:1px solid ${bc};background:${bg};margin-bottom:7px">
+        <span style="font-size:8px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:${bc};color:${tc};white-space:nowrap;align-self:flex-start;margin-top:1px">${r.severity}</span>
+        <span style="font-size:12px;color:#334155;line-height:1.55">${r.text}</span>
+      </div>`;
+    }).join('');
+
+    const simRows = selected.sewa.minIdr ? [50_000_000,80_000_000,100_000_000,150_000_000,200_000_000].map(sc => {
+      const ratio = Math.round((selected.sewa.minIdr! / sc) * 100);
+      const isCur = sc === modalIdr;
+      const col = ratio<=15?'#10b981':ratio<=25?'#d97706':ratio<=40?'#ea580c':'#dc2626';
+      const lbl = ratio<=15?'Aman':ratio<=25?'Moderat':ratio<=40?'Berat':'Riskan';
+      return `<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+        <span style="font-size:11px;font-weight:${isCur?700:400};color:${isCur?'#0284c7':'#334155'};width:70px">${fi(sc)}${isCur?' ←':''}</span>
+        <div style="flex:1;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden">
+          <div style="width:${Math.min(ratio,100)}%;height:100%;background:${col};border-radius:2px"></div>
+        </div>
+        <span style="font-size:10px;color:#64748b;width:28px;text-align:right">${ratio}%</span>
+        <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${col}18;color:${col}">${lbl}</span>
+      </div>`;
+    }).join('') : '';
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>PetaCuan — ${selected.kelurahan}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Arial,sans-serif;color:#0f172a;background:#fff;padding:36px 44px;max-width:740px;margin:0 auto}
+@media print{body{padding:24px 28px}@page{margin:1.5cm}}
+</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:2px solid #e2e8f0;margin-bottom:24px">
+  <div>
+    <div style="font-size:22px;font-weight:900;letter-spacing:-0.03em;color:#0f172a">📍 PetaCuan</div>
+    <div style="font-size:11px;color:#64748b;margin-top:2px">AI Lokasi Usaha UMKM · Tangerang Selatan</div>
+  </div>
+  <div style="font-size:10px;color:#94a3b8;text-align:right">
+    ${date}<br>
+    ${businessType}<br>
+    Modal ${fi(modalIdr)}
+  </div>
+</div>
+
+<div style="font-size:26px;font-weight:900;letter-spacing:-0.02em;margin-bottom:3px">${selected.kelurahan}</div>
+<div style="font-size:12px;color:#64748b;margin-bottom:20px">Kec. ${selected.kecamatan} &nbsp;·&nbsp; ${userContext}</div>
+
+<div style="display:flex;gap:20px;padding:18px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:24px;align-items:center">
+  <div style="text-align:center;flex-shrink:0">
+    <div style="font-size:52px;font-weight:900;line-height:1;color:${sh(selected.scores.final)}">${selected.scores.final}</div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:4px">Skor Akhir</div>
+  </div>
+  <div style="flex:1">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      ${[
+        {label:'Penduduk', val:`${(selected.demografis.jumlahPenduduk/1000).toFixed(0)}K`},
+        {label:'Kompetitor', val:`${selected.market.competitorCount}`},
+        {label:'Sewa min', val:selected.sewa.minIdr?fi(selected.sewa.minIdr):'—'},
+      ].map(s=>`<div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e2e8f0">
+        <div style="font-size:16px;font-weight:700;color:#0f172a">${s.val}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px">${s.label}</div>
+      </div>`).join('')}
+    </div>
+  </div>
+</div>
+
+<div style="margin-bottom:22px">
+  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:12px">Score Breakdown</div>
+  ${scoreRows}
+</div>
+
+${narrative?`<div style="margin-bottom:22px">
+  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:10px">Analisis AI</div>
+  <div style="font-size:13px;line-height:1.75;color:#334155;padding:14px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">${narrative.replace(/\n\n/g,'<br><br>')}</div>
+</div>`:''}
+
+${riskRows?`<div style="margin-bottom:22px">
+  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:10px">😈 Devil's Advocate</div>
+  ${riskRows}
+  ${devil?.verdict?`<div style="font-size:11px;color:#64748b;font-style:italic;padding:8px 12px;background:#f8fafc;border-radius:6px;margin-top:8px">${devil.verdict}</div>`:''}
+</div>`:''}
+
+${simRows?`<div style="margin-bottom:22px">
+  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:10px">🔮 Simulasi Modal</div>
+  ${simRows}
+  <div style="font-size:10px;color:#94a3b8;margin-top:6px">% = sewa min tahunan dari modal. ≤15% aman · 15–25% moderat · &gt;25% berat</div>
+</div>`:''}
+
+<div style="margin-top:28px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
+  <span>PetaCuan · AI Lokasi Usaha UMKM · Tangerang Selatan</span>
+  <span>Data: BPS 2022 · OpenStreetMap 2024</span>
+</div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { alert('Izinkan pop-up untuk export PDF'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 600);
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">🗺️ PetaCuan</h1>
-            <p className="text-xs text-gray-500">AI Lokasi & Format Usaha untuk UMKM Indonesia</p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-base)', overflow: 'hidden' }}>
+
+      {/* ── HEADER ── */}
+      <header style={{
+        height: 54,
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        background: 'var(--bg-header)',
+        borderBottom: '1px solid var(--border)',
+        backdropFilter: 'blur(20px)',
+        zIndex: 50,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 34, height: 34,
+            borderRadius: 9,
+            background: 'linear-gradient(135deg, #38bdf8 0%, #818cf8 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 17, flexShrink: 0,
+            boxShadow: '0 0 16px rgba(56,189,248,0.3)',
+          }}>
+            📍
           </div>
-          <span className="text-xs text-gray-400">Tangerang Selatan • Demo</span>
+          <div>
+            <div style={{ fontFamily: 'var(--font-body)', fontWeight: 800, fontSize: 18, color: 'var(--text-primary)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+              PetaCuan
+            </div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', letterSpacing: '0.03em', marginTop: 1 }}>
+              AI Lokasi Usaha untuk UMKM - Tangerang Selatan
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Data quality badge */}
+          <div title="Demografi: BPS 2022 · POI: OpenStreetMap 2024 · Estimasi sewa: manual curation" style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: 'rgba(52,211,153,0.07)',
+            border: '1px solid rgba(52,211,153,0.2)',
+            borderRadius: 20, padding: '4px 10px',
+            fontSize: 10, color: 'var(--emerald)',
+            fontWeight: 600, letterSpacing: '0.03em',
+            fontFamily: 'var(--font-body)', cursor: 'default',
+          }}>
+            <span style={{ fontSize: 9 }}>✓</span> Data BPS 2022 · OSM 2024
+          </div>
+
+          {/* Dark/Light toggle */}
+          <button
+            onClick={() => setDarkMode(v => !v)}
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            style={{
+              width: 32, height: 32, borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-surface)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14, transition: 'all 0.15s ease',
+            }}
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--accent-dim)',
+            border: '1px solid rgba(56,189,248,0.18)',
+            borderRadius: 20, padding: '4px 11px',
+            fontSize: 11, color: 'var(--accent)',
+            fontWeight: 600, letterSpacing: '0.02em',
+            fontFamily: 'var(--font-body)',
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', boxShadow: '0 0 6px var(--accent)' }} />
+            Tangerang Selatan
+          </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-4">
-        {/* Sidebar */}
-        <aside className="col-span-12 md:col-span-4 space-y-4">
-          {/* Form */}
-          <div className="bg-white rounded-lg shadow-sm p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Pasang Modal Lo</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      {/* ── CONTENT ── */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+
+        {/* ── SIDEBAR ── */}
+        <aside style={{
+          width: 368,
+          flexShrink: 0,
+          overflowY: 'auto',
+          padding: 14,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          background: 'var(--bg-sidebar)',
+          borderRight: '1px solid var(--border)',
+        }}>
+
+          {/* FORM */}
+          <div style={card}>
+            <div style={sectionTitle}>Konfigurasi</div>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Business type — free text */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Jenis Usaha
-                </label>
-                <select
-                  value={businessType}
-                  onChange={(e) => setBusinessType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  {BUSINESS_TYPES.map(b => (
-                    <option key={b.value} value={b.value}>{b.label}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Modal (IDR/tahun)
-                </label>
+                <div style={{ ...label, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span>Jenis Usaha</span>
+                  <span style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    color: businessType.trim().length < 2 ? 'var(--orange)' : 'var(--emerald)',
+                    background: businessType.trim().length < 2 ? 'rgba(251,146,60,0.1)' : 'rgba(52,211,153,0.1)',
+                    border: `1px solid ${businessType.trim().length < 2 ? 'rgba(251,146,60,0.3)' : 'rgba(52,211,153,0.3)'}`,
+                    borderRadius: 4,
+                    padding: '2px 6px',
+                  }}>
+                    {businessType.trim().length < 2 ? 'WAJIB' : 'OK'}
+                  </span>
+                </div>
                 <input
-                  type="number"
-                  value={modalIdr}
-                  onChange={(e) => setModalIdr(Number(e.target.value))}
-                  min={1000000}           
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  type="text"
+                  value={businessType}
+                  onChange={e => setBusinessType(e.target.value)}
+                  placeholder="contoh: Toko Buku, Rental Motor, Warnet..."
+                  maxLength={60}
+                  style={{
+                    ...inputBase,
+                    borderColor: businessType.trim().length < 2 ? 'rgba(251,146,60,0.35)' : 'var(--border)',
+                  }}
                 />
-                <p className="mt-1 text-xs text-gray-500">{formatIdr(modalIdr)}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 7 }}>
+                  {SUGGESTED_BUSINESSES.map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setBusinessType(s)}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 20,
+                        border: businessType === s ? '1px solid rgba(56,189,248,0.5)' : '1px solid var(--border)',
+                        background: businessType === s ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                        color: businessType === s ? 'var(--accent)' : 'var(--text-muted)',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-body)',
+                        transition: 'all 0.12s ease',
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
-              
+
+              {/* Modal */}
+              <div>
+                <div style={label}>Modal (IDR / tahun)</div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={modalIdr ? new Intl.NumberFormat('id-ID').format(modalIdr) : ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setModalIdr(raw ? Number(raw) : 0);
+                  }}
+                  placeholder="0"
+                  style={inputBase}
+                />
+              </div>
+
+              {/* Context — required */}
+              <div>
+                <div style={{ ...label, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span>Konteks Lokasi</span>
+                  <span style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    color: userContext.trim().length < 5 ? 'var(--orange)' : 'var(--emerald)',
+                    background: userContext.trim().length < 5 ? 'rgba(251,146,60,0.1)' : 'rgba(52,211,153,0.1)',
+                    border: `1px solid ${userContext.trim().length < 5 ? 'rgba(251,146,60,0.3)' : 'rgba(52,211,153,0.3)'}`,
+                    borderRadius: 4,
+                    padding: '2px 6px',
+                  }}>
+                    {userContext.trim().length < 5 ? 'WAJIB' : 'OK'}
+                  </span>
+                </div>
+                <textarea
+                  value={userContext}
+                  onChange={e => setUserContext(e.target.value)}
+                  placeholder="contoh: dekat kampus Binus Alam Sutera, target mahasiswa"
+                  rows={2}
+                  maxLength={200}
+                  style={{
+                    ...inputBase,
+                    resize: 'none',
+                    borderColor: userContext.trim().length < 5
+                      ? 'rgba(251,146,60,0.35)'
+                      : 'var(--border)',
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Sebutkan nama tempat / kawasan spesifik di Tangsel
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{userContext.length}/200</span>
+                </div>
+              </div>
+
+              {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={loading || businessType.trim().length < 2 || userContext.trim().length < 5}
+                style={{
+                  width: '100%',
+                  padding: '11px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: (loading || businessType.trim().length < 2 || userContext.trim().length < 5)
+                    ? 'var(--bg-surface)'
+                    : 'linear-gradient(135deg, #38bdf8 0%, #60a5fa 100%)',
+                  color: (loading || businessType.trim().length < 2 || userContext.trim().length < 5) ? 'var(--text-muted)' : '#040d1f',
+                  fontFamily: 'var(--font-body)',
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  cursor: (loading || businessType.trim().length < 2 || userContext.trim().length < 5) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.2s ease',
+                  boxShadow: (loading || businessType.trim().length < 2 || userContext.trim().length < 5)
+                    ? 'none'
+                    : '0 0 20px rgba(56,189,248,0.25), 0 4px 14px rgba(0,0,0,0.4)',
+                  letterSpacing: '0.01em',
+                }}
               >
-                {loading ? '🔍 Menganalisis...' : '🚀 Cari Lokasi Terbaik'}
+                {loading ? (
+                  <>
+                    <div style={{ width: 15, height: 15, border: '2px solid var(--text-muted)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                    Menganalisis...
+                  </>
+                ) : (
+                  <>⚡ Analisis Lokasi Terbaik</>
+                )}
               </button>
             </form>
           </div>
 
-          {/* Top 3 results */}
-          {result && (
-            <div className="bg-white rounded-lg shadow-sm p-5">
-              <h3 className="font-semibold text-gray-900 mb-3">🏆 Top 3 Rekomendasi</h3>
-              <div className="space-y-2">
-                {result.top.map((t, idx) => (
-                  <button
-                    key={t.kelurahanId}
-                    onClick={() => setSelectedId(t.kelurahanId)}
-                    className={`w-full text-left p-3 rounded-md border-2 transition ${
-                      selectedId === t.kelurahanId
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="text-xs font-medium text-gray-500">#{idx + 1}</div>
-                        <div className="font-medium text-gray-900">{t.kelurahan}</div>
-                        <div className="text-xs text-gray-500">{t.kecamatan}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-blue-600">{t.scores.final}</div>
-                        <div className="text-xs text-gray-500">skor</div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+          {/* OUT OF SCOPE */}
+          {outOfScope && (
+            <div className="animate-fade-up" style={{ ...card, borderColor: 'rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.04)' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ fontSize: 18, flexShrink: 0 }}>⚠️</div>
+                <div>
+                  <div style={{ fontWeight: 600, color: 'var(--amber)', fontSize: 13, marginBottom: 5, fontFamily: 'var(--font-body)' }}>
+                    Di Luar Cakupan
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>{outOfScope.reason}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 7, margin: '7px 0 0' }}>
+                    Cakupan: Setu, Serpong, Serpong Utara, Pondok Aren, Ciputat, Ciputat Timur, Pamulang.
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Detail panel */}
-          {selected && (
-            <div className="bg-white rounded-lg shadow-sm p-5">
-              <h3 className="font-semibold text-gray-900 mb-3">📊 Detail: {selected.kelurahan}</h3>
-              
-              <div className="space-y-3">
-                {/* Demografi */}
-                <div className="text-sm">
-                  <div className="font-medium text-gray-700">Penduduk</div>
-                  <div className="text-gray-900">
-                    {selected.demografis.jumlahPenduduk.toLocaleString()} jiwa
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Target customer: ~{selected.demografis.demandTarget.toLocaleString()}
-                  </div>
+          {/* TOP RESULTS — kelurahan tabs */}
+          {result && qualifiedTop.length === 0 && (
+            <div className="animate-fade-up" style={card}>
+              <div style={sectionTitle}>Top Rekomendasi</div>
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <div style={{ fontSize: 22, marginBottom: 8 }}>📉</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Tidak ada lokasi memadai
                 </div>
-                
-                {/* Sewa */}
-                <div className="text-sm">
-                  <div className="font-medium text-gray-700">Estimasi Sewa</div>
-                  <div className="text-gray-900">
-                    {selected.sewa.minIdr && selected.sewa.maxIdr
-                      ? `${formatIdr(selected.sewa.minIdr)} - ${formatIdr(selected.sewa.maxIdr)} / thn`
-                      : 'Data tidak tersedia'}
-                  </div>
-                  <div className="text-xs text-gray-500">Format: {selected.sewa.format}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  Semua skor di bawah {SCORE_THRESHOLD}. Coba ubah jenis usaha atau perbesar modal.
                 </div>
-                
-                {/* Score breakdown */}
-                <div className="text-sm">
-                  <div className="font-medium text-gray-700 mb-2">Score Breakdown</div>
-                  <div className="space-y-1">
-                    {[
-                      { label: 'Demand', value: selected.scores.demand },
-                      { label: 'Kompetisi', value: selected.scores.competition },
-                      { label: 'Anchor', value: selected.scores.anchor },
-                      { label: 'Akses', value: selected.scores.access },
-                      { label: 'Modal Match', value: selected.scores.affordability },
-                    ].map(s => (
-                      <div key={s.label} className="flex items-center gap-2">
-                        <div className="w-20 text-xs text-gray-600">{s.label}</div>
-                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500"
-                            style={{ width: `${s.value}%` }}
-                          />
+              </div>
+            </div>
+          )}
+
+          {result && qualifiedTop.length > 0 && (
+            <div className="animate-fade-up" style={card}>
+              {/* Kelurahan rank tabs */}
+              <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+                {qualifiedTop.map((t, idx) => {
+                  const active = selectedId === t.kelurahanId;
+                  const inCompare = compareIds.includes(t.kelurahanId);
+                  const rColor = RANK_COLORS[idx] ?? RANK_COLORS[2];
+                  return (
+                    <button
+                      key={t.kelurahanId}
+                      onClick={() => {
+                        setSelectedId(t.kelurahanId);
+                        fetchNarrative(t.kelurahanId, idx + 1);
+                        fetchDevilForItem(t);
+                        setCompareIds([]);
+                      }}
+                      style={{
+                        flex: 1, padding: '7px 8px', borderRadius: 8,
+                        border: active ? `1px solid ${rColor}60` : '1px solid var(--border)',
+                        background: active ? `${rColor}12` : 'var(--bg-surface)',
+                        cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 3, transition: 'all 0.15s ease',
+                        fontFamily: 'var(--font-body)', position: 'relative',
+                      }}
+                    >
+                      <span style={{ fontWeight: 800, fontSize: 13, color: active ? rColor : 'var(--text-muted)', lineHeight: 1 }}>
+                        #{idx + 1}
+                      </span>
+                      <span style={{ fontSize: 10, color: active ? 'var(--text-secondary)' : 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', textAlign: 'center' }}>
+                        {t.kelurahan}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: active ? rColor : 'var(--text-muted)' }}>
+                        {t.scores.final}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Compare toggle row */}
+              {qualifiedTop.length >= 2 && (
+                <div style={{ display: 'flex', gap: 5, marginBottom: 12 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', marginRight: 2 }}>Bandingkan:</span>
+                  {qualifiedTop.map((t, idx) => {
+                    const inCompare = compareIds.includes(t.kelurahanId);
+                    const rColor = RANK_COLORS[idx] ?? RANK_COLORS[2];
+                    return (
+                      <button
+                        key={t.kelurahanId}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setCompareIds(prev => {
+                            if (prev.includes(t.kelurahanId)) return prev.filter(id => id !== t.kelurahanId);
+                            if (prev.length >= 2) return [prev[1], t.kelurahanId];
+                            return [...prev, t.kelurahanId];
+                          });
+                        }}
+                        style={{
+                          padding: '3px 9px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                          border: inCompare ? `1px solid ${rColor}60` : '1px solid var(--border)',
+                          background: inCompare ? `${rColor}18` : 'var(--bg-surface)',
+                          color: inCompare ? rColor : 'var(--text-muted)',
+                          cursor: 'pointer', fontFamily: 'var(--font-body)',
+                          transition: 'all 0.12s ease',
+                        }}
+                      >
+                        #{idx + 1}
+                      </button>
+                    );
+                  })}
+                  {compareIds.length > 0 && (
+                    <button
+                      onClick={() => setCompareIds([])}
+                      style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 6px' }}
+                    >
+                      reset
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Comparison panel */}
+              {compareIds.length === 2 && (() => {
+                const a = result?.top.find(t => t.kelurahanId === compareIds[0]);
+                const b = result?.top.find(t => t.kelurahanId === compareIds[1]);
+                if (!a || !b) return null;
+                const idxA = qualifiedTop.findIndex(t => t.kelurahanId === a.kelurahanId);
+                const idxB = qualifiedTop.findIndex(t => t.kelurahanId === b.kelurahanId);
+                const colA = RANK_COLORS[idxA] ?? RANK_COLORS[2];
+                const colB = RANK_COLORS[idxB] ?? RANK_COLORS[2];
+
+                const winsA = SCORE_METRICS.filter(m => a.scores[m.key] >= b.scores[m.key]).length;
+                const verdictWinner = winsA >= 3 ? a.kelurahan : b.kelurahan;
+                const verdictReason = SCORE_METRICS
+                  .filter(m => (winsA >= 3 ? a : b).scores[m.key] > (winsA >= 3 ? b : a).scores[m.key])
+                  .slice(0, 2).map(m => m.label).join(' & ');
+
+                return (
+                  <div className="animate-fade-up" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                      Perbandingan
+                    </div>
+
+                    {/* Headers */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: 6, marginBottom: 8 }}>
+                      <div />
+                      <div style={{ fontSize: 11, fontWeight: 700, color: colA, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.kelurahan}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: colB, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.kelurahan}</div>
+                    </div>
+
+                    {SCORE_METRICS.map(m => {
+                      const va = a.scores[m.key];
+                      const vb = b.scores[m.key];
+                      const aWins = va > vb;
+                      const bWins = vb > va;
+                      return (
+                        <div key={m.key} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: 6, alignItems: 'center', marginBottom: 7 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <span>{m.icon}</span><span>{m.label}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexDirection: 'row-reverse' }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: aWins ? colA : 'var(--text-muted)', minWidth: 22, textAlign: 'right' }}>{va.toFixed(0)}</span>
+                            <div style={{ flex: 1, height: 4, background: 'var(--bg-surface)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ width: `${va}%`, height: '100%', background: aWins ? colA : 'var(--text-muted)', borderRadius: 2, opacity: aWins ? 1 : 0.5 }} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <div style={{ flex: 1, height: 4, background: 'var(--bg-surface)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ width: `${vb}%`, height: '100%', background: bWins ? colB : 'var(--text-muted)', borderRadius: 2, opacity: bWins ? 1 : 0.5 }} />
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: bWins ? colB : 'var(--text-muted)', minWidth: 22 }}>{vb.toFixed(0)}</span>
+                          </div>
                         </div>
-                        <div className="w-10 text-xs font-medium text-right">{s.value.toFixed(0)}</div>
-                      </div>
+                      );
+                    })}
+
+                    <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--bg-surface)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 700, color: winsA >= 3 ? colA : colB }}>{verdictWinner}</span> lebih unggul
+                      {verdictReason ? ` di dimensi ${verdictReason}` : ''}.
+                      {' '}Skor akhir: <span style={{ color: colA }}>{a.scores.final}</span> vs <span style={{ color: colB }}>{b.scores.final}</span>.
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Spots list for selected kelurahan */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                  Spot Potensial {loadingSpots ? '· memuat...' : spots.filter(s => s.kelurahanId === selectedId).length > 0 ? `· ${spots.filter(s => s.kelurahanId === selectedId).length} lokasi` : ''}
+                </div>
+
+                {loadingSpots ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="skeleton" style={{ height: 58, borderRadius: 8 }} />
                     ))}
                   </div>
+                ) : spots.filter(s => s.kelurahanId === selectedId).length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
+                    Tidak ada POI ditemukan di area ini
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {spots.filter(s => s.kelurahanId === selectedId).map((spot, localIdx) => {
+                      const isActive = selectedSpotId === spot.id;
+                      const rankIdx = qualifiedTop.findIndex(t => t.kelurahanId === spot.kelurahanId);
+                      const rColor = RANK_COLORS[rankIdx] ?? RANK_COLORS[2];
+                      return (
+                        <button
+                          key={spot.id}
+                          onClick={() => {
+                            setSelectedSpotId(spot.id);
+                            setFlyTarget([spot.lng, spot.lat]);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: isActive ? `1px solid ${rColor}50` : '1px solid var(--border)',
+                            background: isActive ? `${rColor}0c` : 'var(--bg-surface)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 9,
+                            transition: 'all 0.15s ease',
+                            textAlign: 'left',
+                            fontFamily: 'var(--font-body)',
+                          }}
+                        >
+                          {/* Street view thumb — click to open modal */}
+                          <div
+                            onClick={e => { e.stopPropagation(); setSvModalSpot(spot); }}
+                            title="Lihat foto lokasi"
+                            style={{
+                              width: 38, height: 38, flexShrink: 0,
+                              borderRadius: '50%', overflow: 'hidden',
+                              border: `2px solid ${rColor}60`,
+                              background: `${rColor}20`,
+                              position: 'relative', cursor: 'zoom-in',
+                            }}
+                          >
+                            <img
+                              src={`/api/streetview?lat=${spot.lat}&lng=${spot.lng}`}
+                              alt=""
+                              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '145%', objectFit: 'cover', objectPosition: 'center top' }}
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                            <span style={{
+                              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontWeight: 800, fontSize: 12, color: rColor,
+                              textShadow: '0 1px 3px rgba(0,0,0,0.8)', zIndex: 1,
+                            }}>
+                              {localIdx + 1}
+                            </span>
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                              <span style={{
+                                fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em',
+                                color: rColor, background: `${rColor}15`,
+                                border: `1px solid ${rColor}30`, borderRadius: 4, padding: '1px 5px',
+                                flexShrink: 0,
+                              }}>
+                                {spot.placeType.toUpperCase()}
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: scoreHex(spot.score), marginLeft: 'auto', flexShrink: 0 }}>
+                                {spot.score}
+                              </span>
+                            </div>
+                            <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                              {spot.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              dekat {spot.anchorName}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* AI REASONING */}
+          {aiReasoning && (
+            <div className="animate-fade-up" style={{ ...card, borderColor: 'rgba(167,139,250,0.18)', background: 'rgba(167,139,250,0.04)' }}>
+              <div style={{ display: 'flex', gap: 9 }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>🧠</span>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--violet)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 7 }}>
+                    Strategi AI
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, margin: 0 }}>{aiReasoning}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DETAIL */}
+          {selected && (
+            <div className="animate-fade-up" style={card}>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>
+                  Detail Lokasi
+                </div>
+                <div style={{ fontFamily: 'var(--font-body)', fontWeight: 800, fontSize: 19, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                  {selected.kelurahan}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
+                  Kec. {selected.kecamatan}
                 </div>
               </div>
 
+              {/* Stats row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginBottom: 16 }}>
+                {[
+                  { label: 'Penduduk',    value: `${(selected.demografis.jumlahPenduduk / 1000).toFixed(0)}K`, icon: '👥' },
+                  { label: 'Kompetitor', value: `${selected.market.competitorCount}`,                           icon: '🏪' },
+                  { label: 'Sewa min',    value: selected.sewa.minIdr ? formatIdr(selected.sewa.minIdr) : '—', icon: '🏢' },
+                ].map(stat => (
+                  <div key={stat.label} style={{
+                    background: 'var(--bg-surface)',
+                    borderRadius: 9,
+                    padding: '9px 10px',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ fontSize: 15, marginBottom: 5 }}>{stat.icon}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1 }}>{stat.value}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Score breakdown */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ ...label, marginBottom: 10 }}>Score Breakdown</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {SCORE_METRICS.map(m => {
+                    const val = selected.scores[m.key];
+                    const col = scoreHex(val);
+                    return (
+                      <div key={m.key}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                            <span style={{ fontSize: 12 }}>{m.icon}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{m.label}</span>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: col }}>{val.toFixed(0)}</span>
+                        </div>
+                        <div style={{ height: 4, background: 'var(--bg-surface)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${val}%`,
+                            background: col,
+                            borderRadius: 2,
+                            boxShadow: `0 0 8px ${col}70`,
+                            transition: 'width 0.9s cubic-bezier(0.16,1,0.3,1)',
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Feature D: Chain of Reasoning */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 4 }}>
+                <button
+                  onClick={() => setShowChain(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0 6px',
+                    fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+                    {showChain ? '▾' : '▸'} Kenapa skor ini?
+                  </span>
+                </button>
+                {showChain && selected && (() => {
+                  const s = selected.scores;
+                  const pop = selected.demografis.jumlahPenduduk;
+                  const comp = selected.market.competitorCount;
+                  const anch = selected.market.anchorCount;
+                  const rentRatio = selected.sewa.minIdr ? Math.round((selected.sewa.minIdr / modalIdr) * 100) : null;
+                  const chains: { key: string; icon: string; label: string; val: number; reason: string }[] = [
+                    {
+                      key: 'demand', icon: '👥', label: 'Demand',
+                      val: s.demand,
+                      reason: `Populasi ${(pop / 1000).toFixed(0)}K jiwa di kelurahan — ${s.demand >= 70 ? 'kepadatan tinggi, demand solid' : s.demand >= 50 ? 'cukup padat, potensi ada' : 'populasi relatif rendah'}`,
+                    },
+                    {
+                      key: 'competition', icon: '⚔️', label: 'Kompetisi',
+                      val: s.competition,
+                      reason: `${comp} kompetitor aktif di area — ${s.competition >= 70 ? 'pasar masih terbuka lebar' : s.competition >= 50 ? 'persaingan moderat' : 'persaingan ketat, sulit masuk'}`,
+                    },
+                    {
+                      key: 'anchor', icon: '⚓', label: 'Anchor',
+                      val: s.anchor,
+                      reason: `${anch} traffic generator (sekolah/masjid/pasar) — ${s.anchor >= 70 ? 'banyak sumber traffic harian' : s.anchor >= 50 ? 'beberapa anchor aktif' : 'minim titik keramaian'}`,
+                    },
+                    {
+                      key: 'access', icon: '🛣️', label: 'Akses',
+                      val: s.access,
+                      reason: `${s.access >= 70 ? 'Infrastruktur jalan baik, mudah dijangkau' : s.access >= 50 ? 'Akses jalan cukup memadai' : 'Akses terbatas, perlu kendaraan'}`,
+                    },
+                    {
+                      key: 'affordability', icon: '💰', label: 'Modal',
+                      val: s.affordability,
+                      reason: rentRatio !== null
+                        ? `Sewa min ${rentRatio}% dari modal — ${rentRatio <= 15 ? 'sangat aman untuk cashflow' : rentRatio <= 30 ? 'moderat, masih masuk akal' : 'berat, konsumsi modal besar'}`
+                        : 'Data sewa tidak tersedia di area ini',
+                    },
+                  ];
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {chains.map(c => (
+                        <div key={c.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 9px', background: 'var(--bg-surface)', borderRadius: 7, border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: 11 }}>{c.icon}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                              <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)' }}>{c.label}</span>
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: scoreHex(c.val) }}>{c.val.toFixed(0)}</span>
+                            </div>
+                            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>{c.reason}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* AI Narrative */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-700">🤖 Analisis AI</span>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 13 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+                  <div style={{ ...label, margin: 0 }}>Analisis AI</div>
                   {loadingNarratives.has(selected.kelurahanId) && (
-                    <span className="text-xs text-blue-600 animate-pulse">menulis...</span>
+                    <span style={{ fontSize: 11, color: 'var(--accent)', animation: 'pulse-soft 1.5s ease-in-out infinite' }}>
+                      menulis...
+                    </span>
                   )}
                 </div>
-                
+
                 {narratives[selected.kelurahanId] ? (
-                  <div className="text-sm text-gray-700 space-y-2 leading-relaxed">
-                    {narratives[selected.kelurahanId].split('\n\n').map((para, idx) => (
-                      <p key={idx}>{para}</p>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.72 }}>
+                    {narratives[selected.kelurahanId].split('\n\n').map((para, i, arr) => (
+                      <p key={i} style={{ margin: i < arr.length - 1 ? '0 0 10px' : 0 }}>{para}</p>
                     ))}
                   </div>
                 ) : loadingNarratives.has(selected.kelurahanId) ? (
-                  <div className="space-y-2">
-                    <div className="h-3 bg-gray-200 rounded animate-pulse w-full" />
-                    <div className="h-3 bg-gray-200 rounded animate-pulse w-5/6" />
-                    <div className="h-3 bg-gray-200 rounded animate-pulse w-4/6" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[100, 88, 72].map((w, i) => (
+                      <div key={i} className="skeleton" style={{ height: 11, width: `${w}%` }} />
+                    ))}
                   </div>
                 ) : (
                   <button
                     onClick={() => {
-                      const rank = result?.top.findIndex(t => t.kelurahanId === selected.kelurahanId);
-                      fetchNarrative(selected.kelurahanId, (rank ?? 0) + 1);
+                      const rank = result?.top.findIndex(t => t.kelurahanId === selected.kelurahanId) ?? 0;
+                      fetchNarrative(selected.kelurahanId, rank + 1);
                     }}
-                    className="text-xs text-blue-600 hover:underline"
+                    style={{
+                      fontSize: 12, color: 'var(--accent)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      padding: 0, fontFamily: 'var(--font-body)',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}
                   >
-                    Klik untuk generate analisis AI
+                    ✨ Generate analisis AI
                   </button>
                 )}
               </div>
             </div>
           )}
+
+          {/* DEVIL'S ADVOCATE */}
+          {(loadingDevil || devil) && selected && (
+            <div className="animate-fade-up" style={{ ...card, borderColor: 'rgba(248,113,113,0.22)', background: 'rgba(248,113,113,0.025)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 15, flexShrink: 0 }}>😈</span>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#f87171', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  Devil's Advocate
+                </div>
+                {loadingDevil && (
+                  <span style={{ fontSize: 11, color: '#f87171', marginLeft: 'auto', animation: 'pulse-soft 1.5s ease-in-out infinite' }}>
+                    mencari kelemahan...
+                  </span>
+                )}
+              </div>
+
+              {loadingDevil && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="skeleton" style={{ height: 46, borderRadius: 8 }} />
+                  ))}
+                </div>
+              )}
+
+              {devil && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
+                    {devil.risks.map((risk, i) => {
+                      const sevColor = risk.severity === 'high' ? '#f87171' : risk.severity === 'medium' ? '#fb923c' : '#fbbf24';
+                      return (
+                        <div key={i} style={{
+                          display: 'flex', gap: 9, alignItems: 'flex-start',
+                          padding: '9px 10px',
+                          background: `${sevColor}09`,
+                          border: `1px solid ${sevColor}22`,
+                          borderRadius: 8,
+                        }}>
+                          <span style={{
+                            fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em',
+                            color: sevColor, background: `${sevColor}18`,
+                            border: `1px solid ${sevColor}35`, borderRadius: 4,
+                            padding: '2px 5px', flexShrink: 0, marginTop: 2,
+                            textTransform: 'uppercase',
+                          }}>
+                            {risk.severity}
+                          </span>
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                            {risk.text}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{
+                    borderTop: '1px solid rgba(248,113,113,0.12)',
+                    paddingTop: 10,
+                    fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.65, fontStyle: 'italic',
+                  }}>
+                    {devil.verdict}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* FEATURE C: Counterfactual Modal Sensitivity */}
+          {selected && selected.sewa.minIdr && (
+            <div className="animate-fade-up" style={{ ...card, borderColor: 'rgba(56,189,248,0.15)', background: 'rgba(56,189,248,0.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 14, flexShrink: 0 }}>🔮</span>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  Simulasi Modal
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.55 }}>
+                Bagaimana sewa berubah jika modal kamu berbeda?
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {(() => {
+                  const minSewa = selected.sewa.minIdr!;
+                  const scenarios = [
+                    { label: 'Rp 50jt', modal: 50_000_000 },
+                    { label: 'Rp 80jt', modal: 80_000_000 },
+                    { label: 'Rp 100jt', modal: 100_000_000 },
+                    { label: 'Rp 150jt', modal: 150_000_000 },
+                    { label: 'Rp 200jt', modal: 200_000_000 },
+                  ].filter((sc, _, arr) => {
+                    // Show 3-4 scenarios bracketing the current modal
+                    const current = modalIdr;
+                    const sorted = arr.map(a => a.modal).sort((a,b) => a-b);
+                    const idx = sorted.indexOf(sc.modal);
+                    const ci = sorted.findIndex(m => m >= current);
+                    return Math.abs(idx - ci) <= 1 || idx === 0 || idx === sorted.length - 1;
+                  }).slice(0, 4);
+                  return scenarios.map(sc => {
+                    const ratio = Math.round((minSewa / sc.modal) * 100);
+                    const isCurrent = sc.modal === modalIdr;
+                    const status = ratio <= 15 ? { label: 'Aman', color: '#34d399' } : ratio <= 25 ? { label: 'Moderat', color: '#fbbf24' } : ratio <= 40 ? { label: 'Berat', color: '#fb923c' } : { label: 'Riskan', color: '#f87171' };
+                    return (
+                      <div key={sc.label} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 10px', borderRadius: 7,
+                        border: isCurrent ? '1px solid rgba(56,189,248,0.35)' : '1px solid var(--border)',
+                        background: isCurrent ? 'rgba(56,189,248,0.06)' : 'var(--bg-surface)',
+                      }}>
+                        <span style={{ fontSize: 11, fontWeight: isCurrent ? 700 : 400, color: isCurrent ? 'var(--accent)' : 'var(--text-secondary)', minWidth: 58 }}>
+                          {sc.label}{isCurrent ? ' ←' : ''}
+                        </span>
+                        <div style={{ flex: 1, height: 4, background: 'var(--bg-base)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(ratio, 100)}%`, height: '100%', background: status.color, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                        </div>
+                        <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-muted)', minWidth: 26, textAlign: 'right' }}>{ratio}%</span>
+                        <span style={{ fontSize: 9.5, fontWeight: 700, color: status.color, background: `${status.color}15`, border: `1px solid ${status.color}30`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                          {status.label}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                % = sewa min tahunan dari modal kamu. ≤15% aman, 15-25% moderat, &gt;25% berat.
+              </div>
+            </div>
+          )}
+
+          {/* EXPORT PDF */}
+          {selected && (narratives[selected.kelurahanId] || devil) && (
+            <div className="animate-fade-up">
+              <button
+                onClick={handleExportPDF}
+                style={{
+                  width: '100%', padding: '10px 16px', borderRadius: 10,
+                  border: '1px solid var(--border-active)',
+                  background: 'var(--accent-dim)',
+                  color: 'var(--accent)', fontFamily: 'var(--font-body)',
+                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                📄 Export PDF Report
+              </button>
+            </div>
+          )}
+
+          {/* EMPTY HINT */}
+          {!result && !loading && !outOfScope && (
+            <div style={{ textAlign: 'center', padding: '20px 16px', color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.65 }}>
+              Isi parameter di atas dan klik analisis untuk melihat rekomendasi lokasi terbaik di peta.
+            </div>
+          )}
         </aside>
 
-        {/* Map */}
-        <main className="col-span-12 md:col-span-8">
-          <div className="bg-white rounded-lg shadow-sm h-[calc(100vh-160px)] overflow-hidden">
-            <RecommendMap
-              heatmap={result?.heatmap || []}
-              top={result?.top || []}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
+        {/* ── MAP ── */}
+        <main style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+          <RecommendMap
+            heatmap={result?.heatmap || []}
+            top={qualifiedTop}
+            spots={spots}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            flyTarget={flyTarget}
+            isochroneTarget={flyTarget}
+            theme={darkMode ? 'dark' : 'light'}
+            routeGeometry={routeData?.geometry ?? null}
+            routeFrom={routeData ? [routeData.from.lng, routeData.from.lat] : null}
+            routeTo={routeData ? [routeData.to.lng, routeData.to.lat] : null}
+            pickingActive={pickingActive}
+            onMapPick={lngLat => {
+              const handler = mapClickHandlerRef.current;
+              mapClickHandlerRef.current = null;
+              setPickingActive(false);
+              handler?.(lngLat);
+            }}
+            routePanelOpen={routePanelOpen}
+            onSpotForRoute={spot => {
+              setDestinationHint({
+                lng: spot.lng,
+                lat: spot.lat,
+                label: spot.name,
+              });
+            }}
+          />
+          {result && <MapLegend />}
+
+          {/* Route panel */}
+          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 11 }}>
+            <MapRouting
+              mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string}
+              destinationHint={destinationHint}
+              onRouteChange={setRouteData}
+              requestMapPick={cb => {
+                mapClickHandlerRef.current = cb;
+                setPickingActive(true);
+              }}
+              cancelMapPick={() => {
+                mapClickHandlerRef.current = null;
+                setPickingActive(false);
+              }}
+              picking={pickingActive}
+              onOpenChange={setRoutePanelOpen}
             />
           </div>
         </main>
       </div>
+
+      {/* ── STREET VIEW MODAL — klik di mana saja untuk menutup ── */}
+      {svModalSpot && (
+        <div
+          onClick={() => setSvModalSpot(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out',
+          }}
+        >
+          <div
+            className="animate-fade-up"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 16,
+              overflow: 'hidden',
+              maxWidth: 520,
+              width: '90vw',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
+              cursor: 'default',
+            }}
+          >
+            {/* Image — click opens Google Street View di tab baru, modal otomatis tertutup */}
+            <div
+              onClick={() => window.open(`https://www.google.com/maps?q=&layer=c&cbll=${svModalSpot.lat},${svModalSpot.lng}`, '_blank', 'noopener,noreferrer')}
+              title="Buka di Google Street View"
+              style={{ position: 'relative', width: '100%', paddingTop: '56.25%', cursor: 'pointer', background: 'var(--bg-surface)' }}
+            >
+              <img
+                src={`/api/streetview?lat=${svModalSpot.lat}&lng=${svModalSpot.lng}&size=640x360`}
+                alt="Street View"
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              <div style={{
+                position: 'absolute', bottom: 10, right: 10,
+                background: 'rgba(0,0,0,0.6)', borderRadius: 6,
+                padding: '4px 9px', fontSize: 10, color: '#fff', fontFamily: 'var(--font-body)',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                🔗 Buka Street View
+              </div>
+            </div>
+
+            {/* Info */}
+            <div style={{ padding: '12px 16px' }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 3 }}>{svModalSpot.name}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>dekat {svModalSpot.anchorName}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{svModalSpot.kelurahan}, Kec. {svModalSpot.kecamatan}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, opacity: 0.7, textAlign: 'center' }}>
+                Klik di mana saja di luar untuk menutup
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CHATBOT (floating) ── */}
+      <Chatbot
+        state={{
+          businessType,
+          modalIdr,
+          userContext,
+          sqlCategory,
+          darkMode,
+          hasResults: !!result,
+          topRankings: qualifiedTop.map((t, i) => ({
+            rank: i + 1,
+            kelurahan: t.kelurahan,
+            kecamatan: t.kecamatan,
+            score: t.scores.final,
+          })),
+          selectedKelurahan: selected
+            ? {
+                kelurahan: selected.kelurahan,
+                kecamatan: selected.kecamatan,
+                rank: qualifiedTop.findIndex(t => t.kelurahanId === selected.kelurahanId) + 1,
+                score: selected.scores.final,
+              }
+            : null,
+          spotsForSelected: selectedId
+            ? spots
+                .filter(s => s.kelurahanId === selectedId)
+                .slice(0, 10)
+                .map((s, i) => ({
+                  rank: i + 1,
+                  name: s.name,
+                  placeType: s.placeType,
+                  anchorName: s.anchorName,
+                  score: s.score,
+                }))
+            : [],
+        }}
+        actions={{
+          setBusinessType,
+          setModalIdr,
+          setUserContext,
+          triggerSearch: overrides => runAnalysis(overrides),
+          selectKelurahan: rank => {
+            const t = qualifiedTop[rank - 1];
+            if (!t) return;
+            setSelectedId(t.kelurahanId);
+            fetchNarrative(t.kelurahanId, rank);
+            fetchDevilForItem(t);
+            setCompareIds([]);
+          },
+          flyToSpot: spotRank => {
+            if (!selectedId) return;
+            const spotsInSelected = spots.filter(s => s.kelurahanId === selectedId);
+            const target = spotsInSelected[spotRank - 1];
+            if (!target) return;
+            setSelectedSpotId(target.id);
+            setFlyTarget([target.lng, target.lat]);
+          },
+          compareKelurahan: (rankA, rankB) => {
+            const a = qualifiedTop[rankA - 1];
+            const b = qualifiedTop[rankB - 1];
+            if (!a || !b) return;
+            setCompareIds([a.kelurahanId, b.kelurahanId]);
+          },
+          exportPDF: () => handleExportPDF(),
+          toggleDarkMode: () => setDarkMode(v => !v),
+        }}
+      />
     </div>
   );
 }

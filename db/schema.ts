@@ -17,7 +17,8 @@ export const kelurahan = pgTable('kelurahan', {
   kode: text('kode'),
   nama: text('nama').notNull(),
   kecamatan: text('kecamatan').notNull(),
-  kotaKab: text('kota_kab').notNull().default('Tangerang Selatan'),
+  kotaKab: text('kota_kab').notNull(),
+  provinsi: text('provinsi').notNull(),
   geom: geometry('geom').notNull(),
 });
 

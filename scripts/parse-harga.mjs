@@ -1,13 +1,24 @@
 import fs from 'fs';
 import path from 'path';
+import { loadKecamatanList, legacyFile } from './lib/kecamatan-jabodetabek.mjs';
 
 const INPUT_DIR = './data/scrape-raw';
 const OUTPUT = './data/harga-sewa-parsed.json';
 
-const KECAMATAN = [
-  'pamulang', 'ciputat', 'ciputat-timur', 'pondok-aren',
-  'serpong', 'serpong-utara', 'setu',
-];
+// Daftar kecamatan dari sumber acuan Jabodetabek (bukan lagi hardcode Tangsel).
+const KECAMATAN = loadKecamatanList();
+
+// Cari file .md untuk sebuah entri: nama baru dulu, lalu fallback nama legacy.
+function resolveFile(entry) {
+  const nu = path.join(INPUT_DIR, entry.file);
+  if (fs.existsSync(nu)) return nu;
+  const legacyName = legacyFile(entry);
+  if (legacyName) {
+    const legacy = path.join(INPUT_DIR, legacyName);
+    if (fs.existsSync(legacy)) return legacy;
+  }
+  return null;
+}
 
 function parsePrice(text) {
   // "Rp 200 Juta/Tahun" → 200_000_000
@@ -113,22 +124,24 @@ function fmtIdr(n) {
 
 async function main() {
   const result = {};
-  
-  for (const kec of KECAMATAN) {
-    const filepath = path.join(INPUT_DIR, `${kec}.md`);
-    
-    if (!fs.existsSync(filepath)) {
-      console.log(`⚠️  Skip ${kec}: file not found`);
-      continue;
+  let parsed = 0, missing = 0;
+
+  for (const entry of KECAMATAN) {
+    const filepath = resolveFile(entry);
+
+    if (!filepath) {
+      missing++;
+      continue; // belum ter-scrape — wajar untuk kecamatan di luar Tangsel
     }
-    
+
     const markdown = fs.readFileSync(filepath, 'utf8');
     const listings = extractListings(markdown);
     const stats = calculateStats(listings);
-    
-    result[kec] = { listings, stats };
-    
-    console.log(`\n📍 ${kec} (${listings.length} listings)`);
+
+    result[entry.kecamatan] = { kotaKab: entry.kotaKab, listings, stats };
+    parsed++;
+
+    console.log(`\n📍 ${entry.kotaKab} / ${entry.kecamatan} (${listings.length} listings)`);
     if (stats) {
       for (const [fmt, s] of Object.entries(stats)) {
         console.log(
@@ -144,6 +157,7 @@ async function main() {
   
   fs.writeFileSync(OUTPUT, JSON.stringify(result, null, 2));
   console.log(`\n💾 Saved to ${OUTPUT}`);
+  console.log(`   ${parsed} kecamatan ter-parse, ${missing} belum ter-scrape (dari ${KECAMATAN.length}).`);
 }
 
 main();

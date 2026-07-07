@@ -1,8 +1,10 @@
 DROP FUNCTION IF EXISTS calculate_scores(TEXT, BIGINT);
+DROP FUNCTION IF EXISTS calculate_scores(TEXT, BIGINT, TEXT);
 
 CREATE OR REPLACE FUNCTION calculate_scores(
   p_business_type TEXT,
-  p_modal_idr BIGINT
+  p_modal_idr BIGINT,
+  p_kota_kab TEXT DEFAULT NULL
 )
 RETURNS TABLE (
   kelurahan_id INT,
@@ -122,8 +124,9 @@ BEGIN
       END)::INT AS r_anchor_count,
       
       ((m.jalan_utama_meter * 2) + m.jalan_kolektor_meter)::NUMERIC AS r_access_meter
-      
+
     FROM v_kelurahan_master m
+    WHERE p_kota_kab IS NULL OR m.kota_kab = p_kota_kab
   ),
   
   bounds AS (

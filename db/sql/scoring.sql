@@ -2,13 +2,21 @@
 -- PETACUAN SCORING VIEWS
 -- ============================================
 
+-- Drop berurutan (CASCADE) supaya bisa ubah struktur view di bawah.
+DROP VIEW IF EXISTS v_kelurahan_master CASCADE;
+DROP VIEW IF EXISTS v_kelurahan_poi_summary CASCADE;
+DROP VIEW IF EXISTS v_kelurahan_access CASCADE;
+DROP VIEW IF EXISTS v_kelurahan_demografi CASCADE;
+
 -- View 1: Base demographics dengan area
 -- Sudah handle semua field demografi yang diperlukan
 CREATE OR REPLACE VIEW v_kelurahan_demografi AS
-SELECT 
+SELECT
   k.id,
   k.nama AS kelurahan,
   k.kecamatan,
+  k.kota_kab,
+  k.provinsi,
   k.geom,
   ST_Area(k.geom::geography) / 1000000 AS luas_km2,
   d.jumlah_penduduk,
@@ -75,10 +83,12 @@ GROUP BY k.id;
 
 -- View 4: Master view - semua data per kelurahan, ready for scoring
 CREATE OR REPLACE VIEW v_kelurahan_master AS
-SELECT 
+SELECT
   d.id,
   d.kelurahan,
   d.kecamatan,
+  d.kota_kab,
+  d.provinsi,
   d.luas_km2,
   d.jumlah_penduduk,
   d.usia_remaja_dewasa,

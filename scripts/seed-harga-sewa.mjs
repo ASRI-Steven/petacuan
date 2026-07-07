@@ -2,22 +2,27 @@ import fs from 'fs';
 import path from 'path';
 import postgres from 'postgres';
 import { config } from 'dotenv';
+import { loadKecamatanList, legacyFile } from './lib/kecamatan-jabodetabek.mjs';
 
 config({ path: '.env.local' });
 
 const INPUT_DIR = './data/scrape-raw';
 const sql = postgres(process.env.DATABASE_URL, { prepare: false });
 
-// Mapping URL slug → Nama kecamatan di DB
-const KECAMATAN_MAP = {
-  'pamulang':       'Pamulang',
-  'ciputat':        'Ciputat',
-  'ciputat-timur':  'Ciputat Timur',
-  'pondok-aren':    'Pondok Aren',
-  'serpong':        'Serpong',
-  'serpong-utara':  'Serpong Utara',
-  'setu':           'Setu',
-};
+// Daftar kecamatan Jabodetabek dari sumber acuan tunggal (bukan hardcode Tangsel).
+const KECAMATAN = loadKecamatanList();
+
+// Cari file .md untuk sebuah entri: nama baru dulu, lalu fallback nama legacy.
+function resolveFile(entry) {
+  const nu = path.join(INPUT_DIR, entry.file);
+  if (fs.existsSync(nu)) return nu;
+  const legacyName = legacyFile(entry);
+  if (legacyName) {
+    const legacy = path.join(INPUT_DIR, legacyName);
+    if (fs.existsSync(legacy)) return legacy;
+  }
+  return null;
+}
 
 // === PARSER ===
 
@@ -199,15 +204,17 @@ async function main() {
   
   // 3. Process each kecamatan
   let totalInserted = 0;
-  
-  for (const [slug, namaKecamatan] of Object.entries(KECAMATAN_MAP)) {
-    const filepath = path.join(INPUT_DIR, `${slug}.md`);
-    
-    if (!fs.existsSync(filepath)) {
-      console.log(`\n⚠️  Skip ${namaKecamatan}: file ${filepath} not found`);
-      continue;
+  let missing = 0;
+
+  for (const entry of KECAMATAN) {
+    const namaKecamatan = entry.kecamatan;
+    const filepath = resolveFile(entry);
+
+    if (!filepath) {
+      missing++;
+      continue; // belum ter-scrape — kecamatan tanpa harga_sewa → af_score netral (50) di scoring
     }
-    
+
     const markdown = fs.readFileSync(filepath, 'utf8');
     const listings = extractListings(markdown);
     const rawStats = calculateStats(listings);
@@ -235,6 +242,7 @@ async function main() {
   }
   
   console.log(`\n✅ Inserted ${totalInserted} rows`);
+  console.log(`   ${missing}/${KECAMATAN.length} kecamatan belum ter-scrape (harga_sewa kosong → af_score netral 50).`);
   
   // 4. Verify
   const result = await sql`

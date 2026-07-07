@@ -3,45 +3,41 @@ import postgres from 'postgres';
 import { generateText } from '@/lib/ai';
 import { buildNarrativePrompt } from '@/lib/prompts';
 
-const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 5 });
+export const maxDuration = 30;
+export const dynamic = 'force-dynamic';
 
-const BUSINESS_LABELS: Record<string, string> = {
-  warkop: 'Warung Kopi / Cafe',
-  restoran: 'Restoran / Rumah Makan',
-  laundry: 'Laundry Kiloan',
-  klinik: 'Klinik / Dokter',
-  salon: 'Salon Kecantikan',
-  minimarket: 'Minimarket',
-  apotek: 'Apotek',
-  fotokopi: 'Fotokopi & Print',
-  bengkel: 'Bengkel Kendaraan',
-  barbershop: 'Barbershop',
-};
+const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 5 });
 
 interface RequestBody {
   kelurahanId: number;
   businessType: string;
+  sqlCategory?: string;
   modalIdr: number;
-  rank: number; // 1, 2, 3
+  rank: number;
 }
 
 export async function POST(req: NextRequest) {
+  let kelurahanId: number | undefined;
+  let businessType: string | undefined;
+  let modalIdr: number | undefined;
+  let rank: number | undefined;
+
   try {
     const body: RequestBody = await req.json();
-    const { kelurahanId, businessType, modalIdr, rank } = body;
-    
-    // Validate
+    ({ kelurahanId, businessType, modalIdr, rank } = body);
+    const sqlCategory = body.sqlCategory || 'warkop';
+
     if (!kelurahanId || !businessType || !modalIdr || !rank) {
       return NextResponse.json(
         { error: 'Missing required: kelurahanId, businessType, modalIdr, rank' },
         { status: 400 }
       );
     }
-    
-    // Fetch full data dari calculate_scores
+
+    // Fetch full data dari calculate_scores — pakai sqlCategory untuk SQL
     const scores = await sql`
       SELECT *
-      FROM calculate_scores(${businessType}, ${modalIdr}::BIGINT)
+      FROM calculate_scores(${sqlCategory}, ${modalIdr}::BIGINT)
       WHERE kelurahan_id = ${kelurahanId}
     `;
     
@@ -68,20 +64,7 @@ export async function POST(req: NextRequest) {
     
     const d = demografi[0] || {};
     
-    // Compute final score with default weights (sama dengan API recommend)
-    const DEFAULT_WEIGHTS: Record<string, any> = {
-      warkop:     { demand: 0.30, competition: 0.20, anchor: 0.25, access: 0.10, affordability: 0.15 },
-      restoran:   { demand: 0.35, competition: 0.20, anchor: 0.20, access: 0.10, affordability: 0.15 },
-      laundry:    { demand: 0.40, competition: 0.25, anchor: 0.15, access: 0.05, affordability: 0.15 },
-      klinik:     { demand: 0.35, competition: 0.25, anchor: 0.10, access: 0.10, affordability: 0.20 },
-      salon:      { demand: 0.30, competition: 0.20, anchor: 0.25, access: 0.10, affordability: 0.15 },
-      minimarket: { demand: 0.35, competition: 0.25, anchor: 0.10, access: 0.20, affordability: 0.10 },
-      apotek:     { demand: 0.25, competition: 0.20, anchor: 0.30, access: 0.10, affordability: 0.15 },
-      fotokopi:   { demand: 0.25, competition: 0.15, anchor: 0.40, access: 0.05, affordability: 0.15 },
-      bengkel:    { demand: 0.25, competition: 0.20, anchor: 0.10, access: 0.30, affordability: 0.15 },
-      barbershop: { demand: 0.30, competition: 0.20, anchor: 0.25, access: 0.10, affordability: 0.15 },
-    };
-    const w = DEFAULT_WEIGHTS[businessType] || DEFAULT_WEIGHTS.warkop;
+    const w = { demand: 0.30, competition: 0.20, anchor: 0.25, access: 0.10, affordability: 0.15 };
     const finalScore = 
       Number(s.demand_score) * w.demand +
       Number(s.competition_score) * w.competition +
@@ -95,7 +78,7 @@ export async function POST(req: NextRequest) {
       kecamatan: s.kecamatan,
       rank,
       businessType,
-      businessLabel: BUSINESS_LABELS[businessType] || businessType,
+      businessLabel: businessType,
       modalIdr,
       jumlahPenduduk: s.jumlah_penduduk,
       usiaRemajaDewasa: d.usia_remaja_dewasa,
@@ -134,7 +117,11 @@ export async function POST(req: NextRequest) {
     });
     
   } catch (err: any) {
-    console.error('Narrative API error:', err);
+    console.error('Narrative API error:', {
+      message: err.message,
+      stack: err.stack?.split('\n').slice(0, 3),
+      requestBody: { kelurahanId, businessType, modalIdr, rank },
+    });
     return NextResponse.json(
       { error: 'Failed to generate narrative', message: err.message },
       { status: 500 }

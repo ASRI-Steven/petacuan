@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# raw geodata dumps (besar — regenerate via scripts, jangan di-push)
+*.osm.pbf
+*.osm.bz2
+*.xml.bz2
+idwiki-latest-pages-articles.xml*
+indonesia-latest.osm*
+jabodetabek.osm*
+
+# scratch / catatan lokal
+CATATAN-KENDALA.md
+IMPORT-OSM-MANUAL.md
+components/*.leaflet-backup

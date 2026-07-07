@@ -1,155 +1,6 @@
 {
-  "pamulang": {
-    "listings": [
-      {
-        "priceIdr": 300000000,
-        "lt": 240,
-        "lb": 600,
-        "format": "ruko_premium"
-      },
-      {
-        "priceIdr": 165000000,
-        "lt": 133,
-        "lb": 300,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 175000000,
-        "lt": 612,
-        "lb": 165,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 175000000,
-        "lt": 612,
-        "lb": 165,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 95000000,
-        "lt": 8000,
-        "lb": 98,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 220000000,
-        "lt": 130,
-        "lb": 500,
-        "format": "ruko_premium"
-      },
-      {
-        "priceIdr": 100000000,
-        "lt": 67,
-        "lb": 180,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 220000000,
-        "lt": 76,
-        "lb": 120,
-        "format": "ruko_premium"
-      },
-      {
-        "priceIdr": 110000000,
-        "lt": 104,
-        "lb": 144,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 65000000,
-        "lt": 72,
-        "lb": 56,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 55000000,
-        "lt": 200,
-        "lb": 75,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 99000000,
-        "lt": 200,
-        "lb": 180,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 45000000,
-        "lt": 150,
-        "lb": 200,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 135000000,
-        "lt": 110,
-        "lb": 205,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 320000000,
-        "lt": 240,
-        "lb": 450,
-        "format": "ruko_premium"
-      },
-      {
-        "priceIdr": 100000000,
-        "lt": 74,
-        "lb": 121,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 45000000,
-        "lt": 28,
-        "lb": 28,
-        "format": "kios"
-      },
-      {
-        "priceIdr": 90000000,
-        "lt": 81,
-        "lb": 220,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 135000000,
-        "lt": 100,
-        "lb": 198,
-        "format": "ruko_std"
-      },
-      {
-        "priceIdr": 70000000,
-        "lt": 90,
-        "lb": 144,
-        "format": "ruko_std"
-      }
-    ],
-    "stats": {
-      "ruko_premium": {
-        "count": 4,
-        "min": 220000000,
-        "max": 320000000,
-        "median": 300000000,
-        "p25": 220000000,
-        "p75": 320000000
-      },
-      "ruko_std": {
-        "count": 15,
-        "min": 45000000,
-        "max": 175000000,
-        "median": 100000000,
-        "p25": 70000000,
-        "p75": 135000000
-      },
-      "kios": {
-        "count": 1,
-        "min": 45000000,
-        "max": 45000000,
-        "median": 45000000,
-        "p25": 45000000,
-        "p75": 45000000
-      }
-    }
-  },
-  "ciputat": {
+  "Ciputat": {
+    "kotaKab": "Tangerang Selatan",
     "listings": [
       {
         "priceIdr": 150000000,
@@ -291,7 +142,8 @@
       }
     }
   },
-  "ciputat-timur": {
+  "Ciputat Timur": {
+    "kotaKab": "Tangerang Selatan",
     "listings": [
       {
         "priceIdr": 170000000,
@@ -441,7 +293,159 @@
       }
     }
   },
-  "pondok-aren": {
+  "Pamulang": {
+    "kotaKab": "Tangerang Selatan",
+    "listings": [
+      {
+        "priceIdr": 300000000,
+        "lt": 240,
+        "lb": 600,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 165000000,
+        "lt": 133,
+        "lb": 300,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 175000000,
+        "lt": 612,
+        "lb": 165,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 175000000,
+        "lt": 612,
+        "lb": 165,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 95000000,
+        "lt": 8000,
+        "lb": 98,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 220000000,
+        "lt": 130,
+        "lb": 500,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 100000000,
+        "lt": 67,
+        "lb": 180,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 220000000,
+        "lt": 76,
+        "lb": 120,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 110000000,
+        "lt": 104,
+        "lb": 144,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 65000000,
+        "lt": 72,
+        "lb": 56,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 55000000,
+        "lt": 200,
+        "lb": 75,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 99000000,
+        "lt": 200,
+        "lb": 180,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 45000000,
+        "lt": 150,
+        "lb": 200,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 135000000,
+        "lt": 110,
+        "lb": 205,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 320000000,
+        "lt": 240,
+        "lb": 450,
+        "format": "ruko_premium"
+      },
+      {
+        "priceIdr": 100000000,
+        "lt": 74,
+        "lb": 121,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 45000000,
+        "lt": 28,
+        "lb": 28,
+        "format": "kios"
+      },
+      {
+        "priceIdr": 90000000,
+        "lt": 81,
+        "lb": 220,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 135000000,
+        "lt": 100,
+        "lb": 198,
+        "format": "ruko_std"
+      },
+      {
+        "priceIdr": 70000000,
+        "lt": 90,
+        "lb": 144,
+        "format": "ruko_std"
+      }
+    ],
+    "stats": {
+      "ruko_premium": {
+        "count": 4,
+        "min": 220000000,
+        "max": 320000000,
+        "median": 300000000,
+        "p25": 220000000,
+        "p75": 320000000
+      },
+      "ruko_std": {
+        "count": 15,
+        "min": 45000000,
+        "max": 175000000,
+        "median": 100000000,
+        "p25": 70000000,
+        "p75": 135000000
+      },
+      "kios": {
+        "count": 1,
+        "min": 45000000,
+        "max": 45000000,
+        "median": 45000000,
+        "p25": 45000000,
+        "p75": 45000000
+      }
+    }
+  },
+  "Pondok Aren": {
+    "kotaKab": "Tangerang Selatan",
     "listings": [
       {
         "priceIdr": 200000000,
@@ -583,7 +587,8 @@
       }
     }
   },
-  "serpong": {
+  "Serpong": {
+    "kotaKab": "Tangerang Selatan",
     "listings": [
       {
         "priceIdr": 90000000,
@@ -719,7 +724,8 @@
       }
     }
   },
-  "serpong-utara": {
+  "Serpong Utara": {
+    "kotaKab": "Tangerang Selatan",
     "listings": [
       {
         "priceIdr": 125000000,
@@ -843,7 +849,8 @@
       }
     }
   },
-  "setu": {
+  "Setu": {
+    "kotaKab": "Tangerang Selatan",
     "listings": [
       {
         "priceIdr": 80000000,
