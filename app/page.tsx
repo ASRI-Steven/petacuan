@@ -6,6 +6,7 @@ import { MapLegend } from '@/components/MapLegend';
 import { Chatbot } from '@/components/Chatbot';
 import { MapRouting, type RouteResult, type Place } from '@/components/MapRouting';
 import type { Spot } from '@/components/RecommendMap.types';
+import { JABODETABEK_KOTAS, DEFAULT_KOTA_KAB } from '@/lib/kotas';
 
 const RecommendMap = dynamic(
   () => import('@/components/RecommendMap'),
@@ -32,6 +33,8 @@ const RecommendMap = dynamic(
   routeTo?: [number, number] | null;
   pickingActive?: boolean;
   onMapPick?: (lngLat: [number, number]) => void;
+  routePanelOpen?: boolean;
+  onSpotForRoute?: (spot: Spot) => void;
 }>;
 
 const SUGGESTED_BUSINESSES = [
@@ -148,11 +151,20 @@ const sectionTitle: React.CSSProperties = {
   marginBottom: 12,
 };
 
+const DATA_SOURCES = [
+  { label: 'Demografi (penduduk, usia, pekerjaan)', src: 'Wikipedia / BPS + estimasi', color: '#fbbf24', note: 'Sebagian kelurahan data asli, sebagian besar masih estimasi.' },
+  { label: 'POI kompetitor & anchor', src: 'OpenStreetMap 2024', color: '#fb923c', note: 'Paling lengkap di Tangerang Selatan; kota lain menyusul.' },
+  { label: 'Harga sewa ruko / kios', src: 'rumah123 2026 + 99.co', color: '#fbbf24', note: 'Estimasi rentang p25–p75 per kecamatan.' },
+  { label: 'Batas wilayah kelurahan', src: 'geojson-indonesia (basis BPS)', color: '#34d399', note: '1.496 kelurahan se-Jabodetabek.' },
+];
+
 export default function Home() {
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [businessType, setBusinessType] = useState('');
   const [sqlCategory, setSqlCategory] = useState('warkop');
   const [modalIdr, setModalIdr] = useState(80_000_000);
+  const [kotaKab, setKotaKab] = useState<string>(DEFAULT_KOTA_KAB);
+  const [showSources, setShowSources] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -222,12 +234,12 @@ export default function Home() {
           const tuneRes = await fetch('/api/tune-weights', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ businessType: bt, modalIdr: mod, userContext: ctx }),
+            body: JSON.stringify({ businessType: bt, modalIdr: mod, userContext: ctx, kotaKab }),
           });
           if (tuneRes.ok) {
             const tuneData = await tuneRes.json();
             if (tuneData.outOfScope) {
-              setOutOfScope({ reason: tuneData.outOfScopeReason || 'Wilayah di luar Tangerang Selatan' });
+              setOutOfScope({ reason: tuneData.outOfScopeReason || 'Wilayah di luar Jabodetabek' });
               setLoading(false);
               return;
             }
@@ -253,6 +265,7 @@ export default function Home() {
           sqlCategory: currentSqlCategory,
           modalIdr: mod,
           topN,
+          kotaKab,
           ...(weights ? { customWeights: weights } : {}),
           ...(locationFilter ? { locationFilter } : {}),
         }),
@@ -416,7 +429,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;color:#0f172a;background:#fff
 <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:2px solid #e2e8f0;margin-bottom:24px">
   <div>
     <div style="font-size:22px;font-weight:900;letter-spacing:-0.03em;color:#0f172a">📍 PetaCuan</div>
-    <div style="font-size:11px;color:#64748b;margin-top:2px">AI Lokasi Usaha UMKM · Tangerang Selatan</div>
+    <div style="font-size:11px;color:#64748b;margin-top:2px">AI Lokasi Usaha UMKM · Jabodetabek</div>
   </div>
   <div style="font-size:10px;color:#94a3b8;text-align:right">
     ${date}<br>
@@ -470,8 +483,8 @@ ${simRows?`<div style="margin-bottom:22px">
 </div>`:''}
 
 <div style="margin-top:28px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
-  <span>PetaCuan · AI Lokasi Usaha UMKM · Tangerang Selatan</span>
-  <span>Data: BPS 2022 · OpenStreetMap 2024</span>
+  <span>PetaCuan · AI Lokasi Usaha UMKM · Jabodetabek</span>
+  <span>Sumber: rumah123, OpenStreetMap, estimasi demografi</span>
 </div>
 </body></html>`;
 
@@ -515,23 +528,65 @@ ${simRows?`<div style="margin-bottom:22px">
               PetaCuan
             </div>
             <div style={{ fontSize: 10.5, color: 'var(--text-muted)', letterSpacing: '0.03em', marginTop: 1 }}>
-              AI Lokasi Usaha untuk UMKM - Tangerang Selatan
+              AI Lokasi Usaha untuk UMKM · Jabodetabek
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Data quality badge */}
-          <div title="Demografi: BPS 2022 · POI: OpenStreetMap 2024 · Estimasi sewa: manual curation" style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            background: 'rgba(52,211,153,0.07)',
-            border: '1px solid rgba(52,211,153,0.2)',
-            borderRadius: 20, padding: '4px 10px',
-            fontSize: 10, color: 'var(--emerald)',
-            fontWeight: 600, letterSpacing: '0.03em',
-            fontFamily: 'var(--font-body)', cursor: 'default',
-          }}>
-            <span style={{ fontSize: 9 }}>✓</span> Data BPS 2022 · OSM 2024
+          {/* Sumber & kualitas data */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowSources(v => !v)}
+              title="Sumber & kualitas data"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'rgba(56,189,248,0.07)',
+                border: '1px solid rgba(56,189,248,0.25)',
+                borderRadius: 20, padding: '4px 10px',
+                fontSize: 10, color: 'var(--accent)',
+                fontWeight: 600, letterSpacing: '0.03em',
+                fontFamily: 'var(--font-body)', cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 11 }}>ℹ️</span> Sumber Data
+            </button>
+            {showSources && (
+              <>
+                <div onClick={() => setShowSources(false)} style={{ position: 'fixed', inset: 0, zIndex: 59 }} />
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+                  width: 340, maxWidth: '90vw',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  borderRadius: 12, padding: 14, zIndex: 60,
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.28)',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 3 }}>
+                    Sumber & Kualitas Data
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 12 }}>
+                    Dari mana tiap data berasal dan seberapa akurat.
+                  </div>
+                  {DATA_SOURCES.map(d => (
+                    <div key={d.label} style={{ marginBottom: 11 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)' }}>{d.label}</span>
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', paddingLeft: 13 }}>
+                        Sumber: {d.src}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', paddingLeft: 13, marginTop: 1 }}>
+                        {d.note}
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 9.5, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+                    🟢 baik · 🟡 sedang · 🟠 bervariasi per kota
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Dark/Light toggle */}
@@ -560,7 +615,7 @@ ${simRows?`<div style="margin-bottom:22px">
             fontFamily: 'var(--font-body)',
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', boxShadow: '0 0 6px var(--accent)' }} />
-            Tangerang Selatan
+            {kotaKab}
           </div>
         </div>
       </header>
@@ -638,6 +693,20 @@ ${simRows?`<div style="margin-bottom:22px">
                 </div>
               </div>
 
+              {/* Kota / Kabupaten */}
+              <div>
+                <div style={label}>Kota / Kabupaten</div>
+                <select
+                  value={kotaKab}
+                  onChange={e => setKotaKab(e.target.value)}
+                  style={{ ...inputBase, cursor: 'pointer' }}
+                >
+                  {JABODETABEK_KOTAS.map(k => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Modal */}
               <div>
                 <div style={label}>Modal (IDR / tahun)</div>
@@ -687,7 +756,7 @@ ${simRows?`<div style="margin-bottom:22px">
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    Sebutkan nama tempat / kawasan spesifik di Tangsel
+                    Sebutkan nama tempat / kawasan spesifik di kota terpilih
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{userContext.length}/200</span>
                 </div>
@@ -1476,6 +1545,7 @@ ${simRows?`<div style="margin-bottom:22px">
           modalIdr,
           userContext,
           sqlCategory,
+          kotaKab,
           darkMode,
           hasResults: !!result,
           topRankings: qualifiedTop.map((t, i) => ({
@@ -1509,6 +1579,7 @@ ${simRows?`<div style="margin-bottom:22px">
           setBusinessType,
           setModalIdr,
           setUserContext,
+          setKotaKab,
           triggerSearch: overrides => runAnalysis(overrides),
           selectKelurahan: rank => {
             const t = qualifiedTop[rank - 1];

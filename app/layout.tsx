@@ -16,7 +16,7 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: "PetaCuan — AI Lokasi Usaha",
-  description: "AI-powered business location intelligence untuk UMKM Tangerang Selatan",
+  description: "AI-powered business location intelligence untuk UMKM Jabodetabek",
 };
 
 export default function RootLayout({

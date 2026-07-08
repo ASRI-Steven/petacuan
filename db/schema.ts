@@ -1,9 +1,10 @@
 import { 
   pgTable, 
   serial, 
-  text, 
-  integer, 
-  decimal, 
+  text,
+  integer,
+  bigint,
+  decimal,
   jsonb,
   customType 
 } from 'drizzle-orm/pg-core';
@@ -41,7 +42,7 @@ export const hargaSewa = pgTable('harga_sewa', {
   kelurahanId: integer('kelurahan_id').references(() => kelurahan.id),
   kecamatan: text('kecamatan'),
   format: text('format').notNull(),
-  minYearlyIdr: integer('min_yearly_idr'),
-  maxYearlyIdr: integer('max_yearly_idr'),
+  minYearlyIdr: bigint('min_yearly_idr', { mode: 'number' }),
+  maxYearlyIdr: bigint('max_yearly_idr', { mode: 'number' }),
   source: text('source'),
 });

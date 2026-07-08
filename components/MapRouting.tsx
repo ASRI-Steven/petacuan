@@ -8,7 +8,7 @@ export interface Place {
   label: string;
 }
 
-export type TravelMode = 'driving' | 'walking' | 'cycling';
+export type TravelMode = 'driving' | 'motorcycle' | 'walking';
 
 export interface RouteResult {
   geometry: GeoJSON.LineString;
@@ -35,13 +35,14 @@ interface MapRoutingProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-// Bbox approximate untuk Tangerang Selatan
-const TANGSEL_BBOX = '106.62,-6.42,106.82,-6.22';
+// Bbox approximate untuk Jabodetabek
+const JABODETABEK_BBOX = '106.3,-6.95,107.15,-5.85';
 
-const MODES: { value: TravelMode; label: string; icon: string }[] = [
-  { value: 'driving', label: 'Mobil', icon: '🚗' },
-  { value: 'walking', label: 'Jalan', icon: '🚶' },
-  { value: 'cycling', label: 'Sepeda', icon: '🚴' },
+// Mapbox tak punya profil "motor" → Motor pakai profil driving (paling mendekati).
+const MODES: { value: TravelMode; label: string; icon: string; profile: string }[] = [
+  { value: 'driving', label: 'Mobil', icon: '🚗', profile: 'driving' },
+  { value: 'motorcycle', label: 'Motor', icon: '🏍️', profile: 'driving' },
+  { value: 'walking', label: 'Jalan', icon: '🚶', profile: 'walking' },
 ];
 
 function formatDistance(m: number): string {
@@ -60,7 +61,7 @@ function formatDuration(s: number): string {
 async function geocodeForward(query: string, token: string): Promise<Place[]> {
   const url =
     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-    `?access_token=${token}&country=id&bbox=${TANGSEL_BBOX}&limit=5&language=id&autocomplete=true`;
+    `?access_token=${token}&country=id&bbox=${JABODETABEK_BBOX}&limit=5&language=id&autocomplete=true`;
   try {
     const res = await fetch(url);
     if (!res.ok) return [];
@@ -184,8 +185,9 @@ export function MapRouting({
     setLoadingRoute(true);
     setError(null);
 
+    const profile = MODES.find(m => m.value === mode)?.profile ?? 'driving';
     const url =
-      `https://api.mapbox.com/directions/v5/mapbox/${mode}/` +
+      `https://api.mapbox.com/directions/v5/mapbox/${profile}/` +
       `${from.lng},${from.lat};${to.lng},${to.lat}` +
       `?geometries=geojson&overview=full&access_token=${mapboxToken}`;
 

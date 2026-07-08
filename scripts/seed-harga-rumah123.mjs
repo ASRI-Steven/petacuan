@@ -187,6 +187,9 @@ async function main() {
   try {
     await sql`ALTER TABLE harga_sewa ALTER COLUMN kelurahan_id DROP NOT NULL`.catch(() => {});
     await sql`ALTER TABLE harga_sewa ADD COLUMN IF NOT EXISTS kecamatan TEXT`.catch(() => {});
+    // Harga sewa ruko/tahun bisa > 2,1 M (batas integer) → pakai bigint.
+    await sql`ALTER TABLE harga_sewa ALTER COLUMN min_yearly_idr TYPE BIGINT`.catch(() => {});
+    await sql`ALTER TABLE harga_sewa ALTER COLUMN max_yearly_idr TYPE BIGINT`.catch(() => {});
 
     // Idempotent: hapus baris rumah123 lama.
     const del = await sql`DELETE FROM harga_sewa WHERE source LIKE 'rumah123%'`;

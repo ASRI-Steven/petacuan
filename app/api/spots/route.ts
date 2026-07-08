@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
     const kelMap = new Map(kelurahan.map(k => [k.id, k]));
 
     // Group by kelurahan, score and pick top N per kelurahan
-    const grouped = new Map<number, typeof rows>();
+    const grouped = new Map<number, (typeof rows)[number][]>();
     for (const row of rows) {
       const kid = Number(row.kelurahan_id);
       if (!grouped.has(kid)) grouped.set(kid, []);
