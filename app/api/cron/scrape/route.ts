@@ -6,7 +6,7 @@ export const maxDuration = 300;
 
 import { JABODETABEK_KOTAS, isJabodetabekKota } from '@/lib/kotas';
 
-const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 3 });
+const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1, idle_timeout: 20, connect_timeout: 10 });
 
 // Rotasi 1 kota/hari supaya total request ke Jina ≤ jumlah kecamatan satu kota
 // (hindari rate-limit saat ekspansi Jabodetabek).

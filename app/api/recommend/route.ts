@@ -4,9 +4,11 @@ import postgres from 'postgres';
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 
-const sql = postgres(process.env.DATABASE_URL!, { 
+const sql = postgres(process.env.DATABASE_URL!, {
   prepare: false,
-  max: 5,
+  max: 1,
+  idle_timeout: 20,
+  connect_timeout: 10,
 });
 
 const GENERIC_WEIGHTS = { demand: 0.30, competition: 0.20, anchor: 0.25, access: 0.10, affordability: 0.15 };

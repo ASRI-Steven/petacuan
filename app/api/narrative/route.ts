@@ -6,7 +6,7 @@ import { buildNarrativePrompt } from '@/lib/prompts';
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 
-const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 5 });
+const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1, idle_timeout: 20, connect_timeout: 10 });
 
 interface RequestBody {
   kelurahanId: number;

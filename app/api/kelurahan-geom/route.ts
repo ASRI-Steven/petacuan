@@ -7,6 +7,8 @@ export const dynamic = 'force-dynamic';
 const sql = postgres(process.env.DATABASE_URL!, {
   prepare: false,
   max: 1,
+  idle_timeout: 20,
+  connect_timeout: 10,
 });
 
 export async function GET(req: NextRequest) {

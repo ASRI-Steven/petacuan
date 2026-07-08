@@ -4,7 +4,7 @@ import postgres from 'postgres';
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 
-const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 3 });
+const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1, idle_timeout: 20, connect_timeout: 10 });
 
 const ANCHOR_LABELS: Record<string, string> = {
   place_of_worship: 'Masjid',
