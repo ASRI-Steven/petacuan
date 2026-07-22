@@ -17,6 +17,11 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "PetaCuan — AI Lokasi Usaha",
   description: "AI-powered business location intelligence untuk UMKM Jabodetabek",
+  other: {
+    // Verifikasi kepemilikan submission Dicoding (Challenge platform Web).
+    // Dirender sebagai <meta name="dicoding:email" content="..."> di <head>.
+    "dicoding:email": "stevensama73@gmail.com",
+  },
 };
 
 export default function RootLayout({

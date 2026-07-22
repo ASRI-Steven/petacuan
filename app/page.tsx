@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { MapLegend } from '@/components/MapLegend';
 import { Chatbot } from '@/components/Chatbot';
@@ -152,11 +153,68 @@ const sectionTitle: React.CSSProperties = {
 };
 
 const DATA_SOURCES = [
-  { label: 'Demografi (penduduk, usia, pekerjaan)', src: 'Wikipedia / BPS + estimasi', color: '#fbbf24', note: 'Sebagian kelurahan data asli, sebagian besar masih estimasi.' },
-  { label: 'POI kompetitor & anchor', src: 'OpenStreetMap 2024', color: '#fb923c', note: 'Paling lengkap di Tangerang Selatan; kota lain menyusul.' },
-  { label: 'Harga sewa ruko / kios', src: 'rumah123 2026 + 99.co', color: '#fbbf24', note: 'Estimasi rentang p25–p75 per kecamatan.' },
-  { label: 'Batas wilayah kelurahan', src: 'geojson-indonesia (basis BPS)', color: '#34d399', note: '1.496 kelurahan se-Jabodetabek.' },
+  {
+    label: 'Demografi — penduduk, kepadatan & luas wilayah',
+    src: 'Wikipedia bahasa Indonesia + basis data BPS',
+    color: '#fbbf24',
+    coverage: '440 / 1.496 kelurahan tervalidasi',
+    method: 'Jumlah penduduk & kepadatan dihimpun per kelurahan dari sumber resmi. Kelurahan yang belum terdata dilengkapi estimasi berdasarkan kepadatan wilayah sekitarnya.',
+    note: 'Kelurahan tervalidasi memakai angka resmi; selebihnya estimasi dan dilabeli sebagai perkiraan.',
+  },
+  {
+    label: 'POI kompetitor & anchor keramaian',
+    src: 'OpenStreetMap — © kontributor OpenStreetMap (lisensi ODbL)',
+    color: '#fb923c',
+    coverage: '13 kota/kabupaten terpetakan',
+    method: 'Titik usaha (warung, minimarket, kuliner) dipetakan sebagai kompetitor, dan fasilitas publik (sekolah, masjid, pasar, terminal) sebagai penarik keramaian.',
+    note: 'Kelengkapan mengikuti kontribusi komunitas — paling padat di Tangerang Selatan, wilayah lain menyusul.',
+  },
+  {
+    label: 'Harga sewa ruko / kios',
+    src: 'rumah123.com & 99.co',
+    color: '#fbbf24',
+    coverage: 'Rentang harga per kecamatan',
+    method: 'Listing publik dikumpulkan lalu diringkas menjadi rentang harga wajar (persentil bawah–atas) per kecamatan.',
+    note: 'Estimasi harga penawaran pasar, bukan nilai transaksi resmi.',
+  },
+  {
+    label: 'Batas & geometri wilayah kelurahan',
+    src: 'Data batas administrasi Indonesia (basis BPS / Kemendagri)',
+    color: '#34d399',
+    coverage: '1.496 kelurahan · 6.804 km²',
+    method: 'Poligon batas tiap kelurahan dipakai untuk analisis spasial: jarak, cakupan area jangkauan, dan titik-dalam-wilayah.',
+    note: 'Mencakup 13 kota/kabupaten se-Jabodetabek.',
+  },
 ];
+
+// Cakupan data aktual per wilayah (dihitung dari dataset kelurahan Jabodetabek).
+// kel = jumlah kelurahan · valid = kelurahan dengan demografi tervalidasi · luas = km² (dari geometri).
+const DATA_COVERAGE = [
+  { kota: 'Kabupaten Bogor', kel: 428, valid: 48, luas: 2992.2 },
+  { kota: 'Kabupaten Tangerang', kel: 274, valid: 57, luas: 1029.2 },
+  { kota: 'Kabupaten Bekasi', kel: 187, valid: 72, luas: 1269.8 },
+  { kota: 'Kota Tangerang', kel: 104, valid: 94, luas: 181.2 },
+  { kota: 'Kota Bogor', kel: 68, valid: 11, luas: 111.7 },
+  { kota: 'Jakarta Timur', kel: 65, valid: 26, luas: 184.1 },
+  { kota: 'Jakarta Selatan', kel: 65, valid: 20, luas: 144.5 },
+  { kota: 'Depok', kel: 63, valid: 15, luas: 199.4 },
+  { kota: 'Jakarta Barat', kel: 56, valid: 33, luas: 125.7 },
+  { kota: 'Kota Bekasi', kel: 56, valid: 16, luas: 214.3 },
+  { kota: 'Tangerang Selatan', kel: 54, valid: 11, luas: 164.7 },
+  { kota: 'Jakarta Pusat', kel: 44, valid: 12, luas: 47.6 },
+  { kota: 'Jakarta Utara', kel: 32, valid: 25, luas: 139.7 },
+];
+const DATA_COVERAGE_TOTAL = { kel: 1496, valid: 440, luas: 6804.1 };
+
+const thNum: React.CSSProperties = {
+  textAlign: 'right', padding: '9px 13px', color: 'var(--text-muted)',
+  fontWeight: 600, fontSize: 10.5, letterSpacing: '0.04em',
+  textTransform: 'uppercase', whiteSpace: 'nowrap',
+};
+const tdNum: React.CSSProperties = {
+  textAlign: 'right', padding: '8px 13px', color: 'var(--text-secondary)',
+  fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+};
 
 export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
@@ -484,7 +542,7 @@ ${simRows?`<div style="margin-bottom:22px">
 
 <div style="margin-top:28px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
   <span>PetaCuan · AI Lokasi Usaha UMKM · Jabodetabek</span>
-  <span>Sumber: rumah123, OpenStreetMap, estimasi demografi</span>
+  <span>Sumber: OpenStreetMap (ODbL) · rumah123 &amp; 99.co · Wikipedia/BPS · Mapbox · analisis AI Claude</span>
 </div>
 </body></html>`;
 
@@ -551,41 +609,136 @@ ${simRows?`<div style="margin-bottom:22px">
             >
               <span style={{ fontSize: 11 }}>ℹ️</span> Sumber Data
             </button>
-            {showSources && (
-              <>
-                <div onClick={() => setShowSources(false)} style={{ position: 'fixed', inset: 0, zIndex: 59 }} />
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                  width: 340, maxWidth: '90vw',
-                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
-                  borderRadius: 12, padding: 14, zIndex: 60,
-                  boxShadow: '0 12px 32px rgba(0,0,0,0.28)',
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 3 }}>
-                    Sumber & Kualitas Data
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 12 }}>
-                    Dari mana tiap data berasal dan seberapa akurat.
-                  </div>
-                  {DATA_SOURCES.map(d => (
-                    <div key={d.label} style={{ marginBottom: 11 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)' }}>{d.label}</span>
+            {showSources && createPortal(
+              <div
+                onClick={() => setShowSources(false)}
+                style={{
+                  position: 'fixed', inset: 0, zIndex: 200,
+                  background: 'rgba(2,6,23,0.62)', backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+                  padding: '5vh 16px', overflowY: 'auto',
+                }}
+              >
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    width: 'min(760px, 100%)',
+                    background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                    borderRadius: 16, overflow: 'hidden', textAlign: 'left',
+                    boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
+                    fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  {/* Header modal */}
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+                    padding: '18px 22px 14px', borderBottom: '1px solid var(--border)',
+                    background: 'linear-gradient(180deg, var(--accent-dim), transparent)',
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                        Sumber &amp; Cakupan Data
                       </div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', paddingLeft: 13 }}>
-                        Sumber: {d.src}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', paddingLeft: 13, marginTop: 1 }}>
-                        {d.note}
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.5 }}>
+                        Asal setiap data dan seberapa luas cakupannya. Angka di bawah dihitung langsung dari dataset kelurahan Jabodetabek.
                       </div>
                     </div>
-                  ))}
-                  <div style={{ fontSize: 9.5, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
-                    🟢 baik · 🟡 sedang · 🟠 bervariasi per kota
+                    <button
+                      onClick={() => setShowSources(false)}
+                      aria-label="Tutup"
+                      style={{
+                        flexShrink: 0, width: 30, height: 30, borderRadius: 8,
+                        border: '1px solid var(--border)', background: 'var(--bg-base)',
+                        color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 16, lineHeight: 1,
+                      }}
+                    >×</button>
+                  </div>
+
+                  {/* Body modal */}
+                  <div style={{ padding: '16px 22px 22px', maxHeight: '74vh', overflowY: 'auto' }}>
+
+                    {/* Ringkasan angka */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: 10, marginBottom: 20 }}>
+                      {[
+                        { v: '1.496', l: 'Kelurahan' },
+                        { v: '13', l: 'Kota / Kabupaten' },
+                        { v: '440', l: 'Kelurahan tervalidasi' },
+                        { v: '6.804 km²', l: 'Luas terpetakan' },
+                      ].map(s => (
+                        <div key={s.l} style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '11px 13px' }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--text-primary)', lineHeight: 1.1 }}>{s.v}</div>
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>{s.l}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Daftar sumber */}
+                    <div style={{ ...sectionTitle, marginBottom: 12 }}>Sumber Data</div>
+                    {DATA_SOURCES.map(d => (
+                      <div key={d.label} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: '13px 15px', marginBottom: 10, background: 'var(--bg-base)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                            <span style={{ width: 9, height: 9, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>{d.label}</span>
+                          </div>
+                          <span style={{
+                            flexShrink: 0, fontSize: 10, fontWeight: 600, color: 'var(--accent)',
+                            background: 'var(--accent-dim)', border: '1px solid var(--border-active)',
+                            borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap',
+                          }}>{d.coverage}</span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 5 }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Sumber: </span>{d.src}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{d.method}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 6, paddingTop: 7, borderTop: '1px dashed var(--border)' }}>{d.note}</div>
+                      </div>
+                    ))}
+
+                    {/* Tabel cakupan per wilayah */}
+                    <div style={{ ...sectionTitle, margin: '20px 0 10px' }}>Cakupan per Wilayah</div>
+                    <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 12 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg-base)' }}>
+                            <th style={{ textAlign: 'left', padding: '9px 13px', color: 'var(--text-muted)', fontWeight: 600, fontSize: 10.5, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Wilayah</th>
+                            <th style={thNum}>Kelurahan</th>
+                            <th style={thNum}>Tervalidasi</th>
+                            <th style={thNum}>Luas&nbsp;(km²)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {DATA_COVERAGE.map((r, i) => (
+                            <tr key={r.kota} style={{ borderTop: '1px solid var(--border)', background: i % 2 ? 'transparent' : 'var(--accent-dim)' }}>
+                              <td style={{ padding: '8px 13px', color: 'var(--text-primary)', fontWeight: 500 }}>{r.kota}</td>
+                              <td style={tdNum}>{r.kel}</td>
+                              <td style={tdNum}>{r.valid}<span style={{ color: 'var(--text-muted)', fontSize: 10.5 }}> ({Math.round(r.valid / r.kel * 100)}%)</span></td>
+                              <td style={tdNum}>{r.luas.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                            </tr>
+                          ))}
+                          <tr style={{ borderTop: '2px solid var(--border-active)', background: 'var(--bg-base)', fontWeight: 700 }}>
+                            <td style={{ padding: '9px 13px', color: 'var(--text-primary)' }}>Total Jabodetabek</td>
+                            <td style={{ ...tdNum, color: 'var(--text-primary)' }}>{DATA_COVERAGE_TOTAL.kel.toLocaleString('id-ID')}</td>
+                            <td style={{ ...tdNum, color: 'var(--text-primary)' }}>{DATA_COVERAGE_TOTAL.valid}</td>
+                            <td style={{ ...tdNum, color: 'var(--text-primary)' }}>{DATA_COVERAGE_TOTAL.luas.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Legend + catatan */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', fontSize: 10.5, color: 'var(--text-muted)', marginTop: 14, lineHeight: 1.6 }}>
+                      <span><span style={{ color: '#34d399' }}>●</span> tervalidasi / lengkap</span>
+                      <span><span style={{ color: '#fbbf24' }}>●</span> sebagian estimasi</span>
+                      <span><span style={{ color: '#fb923c' }}>●</span> tergantung cakupan komunitas</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 10, opacity: 0.85, lineHeight: 1.5 }}>
+                      &ldquo;Tervalidasi&rdquo; = kelurahan yang jumlah penduduk &amp; kepadatannya berasal dari sumber resmi. Sisanya memakai estimasi berbasis kepadatan wilayah sekitar dan ditandai sebagai perkiraan di dalam aplikasi.
+                    </div>
                   </div>
                 </div>
-              </>
+              </div>,
+              document.body
             )}
           </div>
 

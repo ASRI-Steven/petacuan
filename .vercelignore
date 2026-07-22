@@ -1,0 +1,20 @@
+# File data mentah & tooling — hanya dipakai lokal untuk seed/import.
+# App runtime baca dari DB Supabase, jadi ini TIDAK perlu ikut deploy.
+
+# Data OSM/Wikipedia raw (GB-an)
+*.pbf
+*.osm
+*.bz2
+*.xml.bz2
+
+# Folder data & script lokal
+data/
+scripts/
+db/sql/
+
+# Build cache lokal (Vercel build ulang di server)
+.next/
+
+# Catatan internal
+CATATAN-KENDALA.md
+IMPORT-OSM-MANUAL.md
