@@ -1,0 +1,38 @@
+name: Keep Supabase Alive
+
+# Ping endpoint keep-alive tiap hari supaya database Supabase (free tier)
+# tidak pernah menganggur 7 hari lalu di-pause otomatis.
+#
+# - Tidak butuh secret apa pun: cuma curl URL publik.
+# - Kalau DB sedang mati, job jadi MERAH (dan GitHub kirim email) — jadi alert dini.
+# - Bisa juga dijalankan manual lewat tab Actions (workflow_dispatch).
+#
+# Catatan: GitHub menonaktifkan scheduled workflow setelah 60 hari repo tanpa commit.
+# Selama repo masih aktif dikembangkan, aman.
+
+on:
+  schedule:
+    - cron: '37 2 * * *' # tiap hari 02:37 UTC (dibuat ganjil; jam bulat sering di-drop GitHub)
+  workflow_dispatch: {}
+
+# Kalau URL production-mu berubah, cukup ganti di sini.
+env:
+  KEEPALIVE_URL: https://petacuan.vercel.app/api/keep-alive
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping keep-alive endpoint
+        run: |
+          echo "GET $KEEPALIVE_URL"
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 30 --retry 2 --retry-delay 5 "$KEEPALIVE_URL" || true)
+          echo "HTTP $code"
+          cat /tmp/body || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::Keep-alive gagal (HTTP $code). Kemungkinan project Supabase paused — resume di dashboard."
+            exit 1
+          fi
+          echo "✅ Database aktif."
