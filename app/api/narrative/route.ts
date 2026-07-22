@@ -34,10 +34,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch full data dari calculate_scores — pakai sqlCategory untuk SQL
+    // Ambil kota_kab kelurahan dulu supaya calculate_scores di-scope per kota.
+    // Tanpa ini dia skoring SELURUH Jabodetabek (1.496 kelurahan × spatial join
+    // ke semua POI) → lambat → 504, apalagi setelah POI bertambah banyak.
+    // Scoping juga bikin skor konsisten dengan halaman rekomendasi.
+    const kelRow = await sql`SELECT kota_kab FROM kelurahan WHERE id = ${kelurahanId}`;
+    if (kelRow.length === 0) {
+      return NextResponse.json({ error: 'Kelurahan not found' }, { status: 404 });
+    }
+    const kotaKab = kelRow[0].kota_kab as string;
+
+    // Fetch full data dari calculate_scores — di-scope ke kota kelurahan
     const scores = await sql`
       SELECT *
-      FROM calculate_scores(${sqlCategory}, ${modalIdr}::BIGINT)
+      FROM calculate_scores(${sqlCategory}, ${modalIdr}::BIGINT, ${kotaKab})
       WHERE kelurahan_id = ${kelurahanId}
     `;
     
