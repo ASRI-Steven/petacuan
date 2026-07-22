@@ -641,7 +641,7 @@ ${simRows?`<div style="margin-bottom:22px">
                     background: 'linear-gradient(180deg, var(--accent-dim), transparent)',
                   }}>
                     <div>
-                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                      <div style={{ fontFamily: 'var(--font-body)', fontWeight: 800, fontSize: 19, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
                         Sumber &amp; Cakupan Data
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.5 }}>
@@ -671,7 +671,7 @@ ${simRows?`<div style="margin-bottom:22px">
                         { v: '6.804 km²', l: 'Luas terpetakan' },
                       ].map(s => (
                         <div key={s.l} style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '11px 13px' }}>
-                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--text-primary)', lineHeight: 1.1 }}>{s.v}</div>
+                          <div style={{ fontFamily: 'var(--font-body)', fontWeight: 800, fontSize: 18, color: 'var(--text-primary)', lineHeight: 1.1 }}>{s.v}</div>
                           <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>{s.l}</div>
                         </div>
                       ))}

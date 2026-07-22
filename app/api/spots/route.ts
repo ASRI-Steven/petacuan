@@ -26,7 +26,7 @@ const ANCHOR_LABELS: Record<string, string> = {
 
 // Detect worship type from POI name (reliable for Indonesian OSM — religion tag often missing)
 function detectWorshipType(name: string): 'muslim' | 'christian' | 'buddhist' | 'hindu' | 'unknown' {
-  const n = name.toLowerCase();
+  const n = (name || '').toLowerCase();
   if (n.includes('masjid') || n.includes('mushola') || n.includes('musala') ||
       n.includes('surau') || n.includes('jami') || n.includes('nurul') ||
       n.includes('baitul') || n.includes('baitullah') || n.includes('darul') ||
@@ -230,8 +230,6 @@ export async function POST(req: NextRequest) {
       JOIN kelurahan k
         ON ST_Contains(k.geom, ST_Transform(p.way, 4326))
       WHERE k.id = ANY(${kelurahanIds})
-        AND p.name IS NOT NULL
-        AND trim(p.name) != ''
         AND (
           p.amenity IN (
             'university','college','school','marketplace',
@@ -283,7 +281,7 @@ export async function POST(req: NextRequest) {
         spots.push({
           id: Number(row.id),
           name: '',          // filled after road lookup
-          anchorName: row.name,
+          anchorName: row.name || (ANCHOR_LABELS[effectiveType] ?? 'POI'),
           lat,
           lng,
           kelurahanId: kid,
@@ -291,7 +289,7 @@ export async function POST(req: NextRequest) {
           kecamatan: kel.kecamatan,
           placeType: ANCHOR_LABELS[effectiveType] ?? effectiveType,
           score: calcSpotScore(kel.score, aScore, idx),
-          reason: getReason(row.anchor_type, row.name, sqlCategory),
+          reason: getReason(row.anchor_type, row.name || (ANCHOR_LABELS[effectiveType] ?? 'lokasi'), sqlCategory),
         });
       });
     });
