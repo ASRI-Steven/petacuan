@@ -333,7 +333,8 @@ export default function Home() {
       const data = await res.json();
       setResult(data);
 
-      const qualified = (data.top as ApiResponse['top']).filter(t => t.scores.final >= SCORE_THRESHOLD);
+      const _pass = (data.top as ApiResponse['top']).filter(t => t.scores.final >= SCORE_THRESHOLD);
+      const qualified = _pass.length > 0 ? _pass : (data.top as ApiResponse['top']);
       if (qualified.length > 0) {
         setSelectedId(qualified[0].kelurahanId);
         fetchNarrative(qualified[0].kelurahanId, 1, { businessType: bt, modalIdr: mod, sqlCategory: currentSqlCategory });
@@ -430,7 +431,11 @@ export default function Home() {
     }
   }
 
-  const qualifiedTop = result?.top.filter(t => t.scores.final >= SCORE_THRESHOLD) ?? [];
+  const _topAll = result?.top ?? [];
+  const _passing = _topAll.filter(t => t.scores.final >= SCORE_THRESHOLD);
+  // Jangan pernah tampil kosong saat ada hasil: kalau tak ada yang lolos threshold,
+  // tetap tampilkan hasil terbaik yang tersedia (biar demo gak blank).
+  const qualifiedTop = _passing.length > 0 ? _passing : _topAll;
   const selected = result?.top.find(t => t.kelurahanId === selectedId);
 
   function handleExportPDF() {
@@ -989,7 +994,7 @@ ${simRows?`<div style="margin-bottom:22px">
           {result && qualifiedTop.length > 0 && (
             <div className="animate-fade-up" style={card}>
               {/* Kelurahan rank tabs */}
-              <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 5, marginBottom: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'thin' }}>
                 {qualifiedTop.map((t, idx) => {
                   const active = selectedId === t.kelurahanId;
                   const inCompare = compareIds.includes(t.kelurahanId);
@@ -1004,7 +1009,7 @@ ${simRows?`<div style="margin-bottom:22px">
                         setCompareIds([]);
                       }}
                       style={{
-                        flex: 1, padding: '7px 8px', borderRadius: 8,
+                        flex: '1 0 88px', padding: '7px 8px', borderRadius: 8,
                         border: active ? `1px solid ${rColor}60` : '1px solid var(--border)',
                         background: active ? `${rColor}12` : 'var(--bg-surface)',
                         cursor: 'pointer', display: 'flex', flexDirection: 'column',
@@ -1028,7 +1033,7 @@ ${simRows?`<div style="margin-bottom:22px">
 
               {/* Compare toggle row */}
               {qualifiedTop.length >= 2 && (
-                <div style={{ display: 'flex', gap: 5, marginBottom: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginBottom: 12 }}>
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', marginRight: 2 }}>Bandingkan:</span>
                   {qualifiedTop.map((t, idx) => {
                     const inCompare = compareIds.includes(t.kelurahanId);
