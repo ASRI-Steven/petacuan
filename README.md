@@ -1,37 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PetaCuan
 
-## Getting Started
+AI rekomendasi lokasi usaha untuk UMKM di Jabodetabek, berjalan di browser (Next.js + Mapbox). Pilih jenis usaha, modal, dan kota, lalu PetaCuan menilai 1.496 kelurahan dari demografi, POI OpenStreetMap, akses jalan, dan harga sewa. Hasilnya tampil sebagai peringkat di peta, lengkap dengan analisis AI.
 
-First, run the development server:
+Live: https://petacuan.vercel.app
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
+- `app/page.tsx` — UI: pilih kota, jenis usaha & modal, peta (batas kelurahan, POI, rute, Street View), peringkat, analisis AI, chatbot
+- `app/api/recommend` — skor & peringkat kelurahan per kota
+- `app/api/narrative` — narasi analisis lokasi oleh AI
+- `app/api/devil` — devil's advocate: AI mencari 2–3 risiko nyata dari angka skor
+- `app/api/spots` — titik usulan di dekat POI pendukung
+- `app/api/tune-weights` — AI mengubah kebutuhan user jadi bobot skor
+- `app/api/chat` — chatbot tanya-jawab lokasi
+- `app/api/cron/scrape` — scrape harga sewa ruko, satu kota per hari (Vercel Cron)
+- `app/api/keep-alive` — ping ringan supaya database Supabase (free tier) tidak auto-pause
+- `db/` — skema Drizzle + SQL view & fungsi skor `calculate_scores`
+- `scripts/` — pipeline data (batas kelurahan, demografi, POI & jalan, harga sewa) dan deploy
+- `lib/ai.ts` — pilih provider AI: Claude (default) atau Hugging Face
+
+## Cara skor dihitung
+
+`calculate_scores(jenis_usaha, modal, kota)` di PostGIS menghitung lima komponen per kelurahan. Tiap komponen dinormalisasi 0–100 di dalam kota terpilih, lalu dijumlah dengan bobot.
+
+- **Demand** — populasi target sesuai jenis usaha
+- **Competition** — makin sedikit pesaing sejenis, makin tinggi
+- **Anchor** — POI pendukung: sekolah, kampus, pasar, rumah ibadah, faskes, mal, kantor, transit
+- **Access** — panjang jalan utama & kolektor
+- **Affordability** — harga sewa dibanding modal (modal menentukan tipe tempat: PKL, kios, ruko)
+
+## Menjalankan
+
+Butuh Node 20+, pnpm, dan Postgres + PostGIS (Supabase).
+
+```
+pnpm install
+# isi .env.local, lihat tabel di bawah
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variabel | Untuk |
+|---|---|
+| `DATABASE_URL` | Postgres + PostGIS (Supabase) |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | peta, geocoding, rute |
+| `ANTHROPIC_API_KEY` | AI (provider default) |
+| `ANTHROPIC_MODEL` | opsional, default `claude-haiku-4-5-20251001` |
+| `AI_PROVIDER` | `claude` (default) atau `huggingface` |
+| `HF_TOKEN`, `HF_MODEL` | kalau `AI_PROVIDER=huggingface` |
+| `GOOGLE_MAPS_API_KEY` | Street View |
+| `CRON_SECRET` | proteksi `/api/cron/scrape` |
+| `JINA_API_KEY` | opsional, untuk scraper harga sewa lewat r.jina.ai |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Mengisi data
 
-## Learn More
+Script di `scripts/`, dijalankan manual dengan `node scripts/<nama>.mjs`:
 
-To learn more about Next.js, take a look at the following resources:
+1. Batas kelurahan: `extract-jabodetabek.mjs`, lalu `import-kelurahan.mjs`
+2. Demografi: `scrape-demografi.mjs` atau `parse-wiki-dump.mjs` (Wikipedia), lalu `derive-demografi.mjs`
+3. POI & jalan: `import-poi-overpass.mjs`, `import-roads-overpass.mjs` (Overpass API)
+4. Harga sewa: `scrape-rumah123.mjs`, lalu `seed-harga-rumah123.mjs`
+5. View & fungsi skor: `node scripts/apply-sql.mjs db/sql/scoring.sql db/sql/scoring-function.sql`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Vercel (region `sin1`): `pnpm deploy:prod`. Tambah `--sync-env` untuk menyalin `.env.local` ke env Vercel.
+- Vercel Cron: `/api/cron/scrape` tiap hari pukul 00:00 WIB.
+- GitHub Actions (`.github/workflows/keep-alive.yml`): ping `/api/keep-alive` tiap hari.
 
-## Deploy on Vercel
+## Data & layanan pihak ketiga
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# petacuan
+- Data peta © kontributor OpenStreetMap (ODbL), lewat Overpass API
+- Batas kelurahan: `geojson-indonesia`
+- Demografi: Wikipedia bahasa Indonesia dan BPS, sisanya estimasi
+- Harga sewa: listing 99.co dan rumah123, lewat Jina Reader
+- Peta, geocoding, rute: Mapbox · Street View: Google Maps Platform
+- AI: Anthropic Claude (default) atau Hugging Face Inference Providers
